@@ -12,6 +12,12 @@ import jakarta.validation.constraints.NotNull;
 
 public record PedidoGetDTO(
 		UUID id,
+        // UUID do cliente, usado pelo quiosque como alvo do scan BLE.
+        UUID idAparelho,
+        // UUID do entregador que saiu com o pedido.
+        UUID idAparelhoEntregador,
+        // RSSI medio opcional publicado pelo quiosque.
+        Integer rssiMedioEntrega,
 		@NotNull
 		Long id_quiosque,
 		@NotNull
@@ -60,6 +66,9 @@ public record PedidoGetDTO(
 	        : p.getCliente().getNome();
 	    return new PedidoGetDTO(
 	    	p.getId(),
+                p.getIdAparelho(),
+                p.getIdAparelhoEntregador(),
+                p.getRssiMedioEntrega(),
 	    	p.getQuiosque().getId(),
 	    	p.getQuiosque().getNome(),
 	    	p.getCliente().getId(),

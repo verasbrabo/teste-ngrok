@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import app.DTO.AtualizarStatusDTO;
+import app.DTO.AtualizarProximidadeDTO;
 import app.DTO.AvaliarDTO;
 import app.DTO.ItemDTO;
 import app.DTO.ItemPedidoDTO;
@@ -211,7 +212,8 @@ public class PedidoService {
 		        cliente,
 		        quiosque,
 		        new ArrayList<>(),
-		        StatusPedido.CRIADO
+		        StatusPedido.CRIADO,
+                data.idAparelho()
 		);
 		adicionarItens(pedido, data.itens(), quiosque);
 
@@ -267,7 +269,8 @@ public class PedidoService {
 				funcionario,     // o funcionário figura como solicitante do pedido
 				quiosque,
 				new ArrayList<>(),
-				StatusPedido.PREPARANDO
+				StatusPedido.PREPARANDO,
+                null
 		);
 
 		pedido.setInterno(true);
@@ -455,6 +458,11 @@ public class PedidoService {
 			if(data.status() == StatusPedido.PREPARANDO
 					&& pedido.getDataHoraPreparando() == null)
 				pedido.setDataHoraPreparando(LocalDateTime.now());
+			// Quando o pedido sai para entrega, persiste qual aparelho do
+			// entregador esta conduzindo a entrega.
+			if(data.status() == StatusPedido.EM_ENTREGA
+					&& data.idAparelhoEntregador() != null)
+				pedido.setIdAparelhoEntregador(data.idAparelhoEntregador());
 			pedido.setStatus(data.status());
 			NotificationRequestDTO dto;
 			if(data.status().equals(StatusPedido.EM_ENTREGA) && pedido.getEntregador() != null) 
@@ -470,6 +478,25 @@ public class PedidoService {
 			    HttpStatus.BAD_REQUEST,
 			    "Erro ao atualizar status"
 			);			
+	}
+
+	@Transactional
+	public PedidoGetDTO atualizarProximidadeEntrega(
+			UUID id,
+			Usuario funcionario,
+			AtualizarProximidadeDTO data) {
+
+		Quiosque quiosque = findQuiosqueForUser(funcionario);
+		Pedido pedido = pedidoRepository.findByIdAndQuiosque(id, quiosque)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido nÃ£o encontrado"));
+
+		if (pedido.getStatus() != StatusPedido.EM_ENTREGA)
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Pedido nÃ£o estÃ¡ em entrega");
+
+		// RSSI publicado pelo app do quiosque. E dado temporario de proximidade;
+		// a confirmacao real da entrega continua sendo feita por codigo.
+		pedido.setRssiMedioEntrega(data.rssiMedio());
+		return PedidoGetDTO.from(pedidoRepository.save(pedido));
 	}
 	
 	@Transactional

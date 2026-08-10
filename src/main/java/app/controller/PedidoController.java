@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import app.DTO.PedidoDTO;
 import app.DTO.PedidoInternoDTO;
 import app.DTO.PedidoGetDTO;
+import app.DTO.AtualizarProximidadeDTO;
 import app.DTO.AtualizarStatusDTO;
 import app.DTO.AvaliarDTO;
 import app.DTO.MotivoCancelamentoDTO;
@@ -185,6 +186,17 @@ public class PedidoController {
 			@PathVariable UUID id,
 	        @RequestBody  AtualizarStatusDTO data) {
 	    return ResponseEntity.ok(pedidoService.updatePedido(id, admin, data));
+	}
+
+	// Atualiza a telemetria de proximidade calculada pelo app do quiosque.
+	// Nao finaliza pedido; serve apenas para expor o RSSI medio quando necessario.
+	@PatchMapping("/quiosques/me/pedidos/{id}/proximidade")
+	@PreAuthorize("hasRole('FUNCIONARIO')")
+	public ResponseEntity<PedidoGetDTO> atualizarProximidadeEntrega(
+			@AuthenticationPrincipal Usuario admin,
+			@PathVariable UUID id,
+	        @RequestBody @Valid AtualizarProximidadeDTO data) {
+	    return ResponseEntity.ok(pedidoService.atualizarProximidadeEntrega(id, admin, data));
 	}
 	
 	@PreAuthorize("hasAnyRole('FUNCIONARIO','CLIENTE')")

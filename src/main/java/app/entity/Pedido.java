@@ -10,6 +10,7 @@ import java.util.UUID;
 import app.enums.StatusPedido;
 import app.enums.UserRole;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -26,6 +27,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import tools.jackson.core.io.BigDecimalParser;
 
 @SuppressWarnings("unused")
@@ -37,7 +40,8 @@ import tools.jackson.core.io.BigDecimalParser;
 public class Pedido {
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
-	private UUID id;	
+	private UUID id;
+    //Id de conexão de para feture de aproximação
 	private BigDecimal valorTotal;
 	private LocalDateTime dataHoraPedido;
 	private LocalDateTime dataHoraEntrega;
@@ -73,8 +77,25 @@ public class Pedido {
 	private Usuario entregador;
 	
 	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(SqlTypes.VARCHAR)
+	@Column(nullable = false, length = 20)
 	private StatusPedido status;		
-	
+
+    // UUID persistente do aparelho do cliente. O app do cliente anuncia esse
+    // valor por BLE, e o app do quiosque usa o mesmo UUID para filtrar o scan.
+    @Column (name = "IdDevice", nullable = true)
+    private UUID aparelhoId;
+
+    // UUID persistente do aparelho do entregador que saiu com o pedido.
+    // Serve para auditoria/identificacao do aparelho, nao para o scan principal.
+    @Column(name = "IdDeviceEntregador", nullable = true)
+    private UUID aparelhoEntregadorId;
+
+    // RSSI medio calculado pelo quiosque durante a aproximacao. Campo opcional:
+    // a tela do entregador funciona localmente mesmo sem persistir esse valor.
+    @Column(name = "RssiMedioEntrega", nullable = true)
+    private Integer rssiMedioEntrega;
+
 	public void calcularValorTot() {
 		if (itemPedidos == null || itemPedidos.isEmpty()) {
 	        this.valorTotal = BigDecimal.ZERO;
@@ -86,8 +107,9 @@ public class Pedido {
 	}
 
 	public Pedido(LocalDateTime dataHoraPedido, Coordenada coordenada,
-			Usuario cliente, Quiosque quiosque, List<ItemPedido> itemPedidos,StatusPedido status) {
+			Usuario cliente, Quiosque quiosque, List<ItemPedido> itemPedidos,StatusPedido status , UUID aparelhoId) {
 		super();
+        this.aparelhoId = aparelhoId;
 		this.dataHoraPedido = dataHoraPedido;
 		this.coordenada = coordenada;
 		this.cliente = cliente;
@@ -143,7 +165,26 @@ public class Pedido {
 		 return id;
 	 }
 
-	 public void setId(UUID id) {
+     public UUID getIdAparelho(){return aparelhoId;}
+
+     public UUID getIdAparelhoEntregador(){return aparelhoEntregadorId;}
+
+    public void setIdAparelho(){this.aparelhoId = aparelhoId;}
+
+    public void setIdAparelhoEntregador(UUID aparelhoEntregadorId) {
+        this.aparelhoEntregadorId = aparelhoEntregadorId;
+    }
+
+    public Integer getRssiMedioEntrega() {
+        return rssiMedioEntrega;
+    }
+
+    public void setRssiMedioEntrega(Integer rssiMedioEntrega) {
+        this.rssiMedioEntrega = rssiMedioEntrega;
+    }
+
+
+    public void setId(UUID id) {
 		 this.id = id;
 	 }
 
