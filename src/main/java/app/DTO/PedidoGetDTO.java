@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.UUID;
 
 import app.entity.Pedido;
+import app.enums.FormaPagamento;
+import app.enums.StatusPagamento;
 import app.enums.StatusPedido;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -32,6 +34,13 @@ public record PedidoGetDTO(
 	    String nome_entregador,
 	    @NotNull
 	    BigDecimal valorTotal,
+	    // Campos de pagamento exibidos no app do quiosque/entregador.
+	    // `valorPagoCliente` e `valorTroco` so existem para dinheiro.
+	    FormaPagamento formaPagamento,
+	    StatusPagamento statusPagamento,
+	    BigDecimal valorPagoCliente,
+	    BigDecimal valorTroco,
+	    boolean precisaMaquininha,
 	    @NotNull
 		LocalDateTime dataHoraPedido,
 		// Momento em que o pedido entrou em PREPARANDO (base da janela de 30 min
@@ -74,8 +83,13 @@ public record PedidoGetDTO(
 	    	p.getCliente().getId(),
 	    	nomeCliente,
 	    	p.getEntregador() != null ? p.getEntregador().getId() : null,
-	    	p.getEntregador() != null ? p.getEntregador().getNome() : null,
+	        p.getEntregador() != null ? p.getEntregador().getNome() : null,
 	        p.getValorTotal(),
+	        p.getFormaPagamento(),
+	        p.getStatusPagamento(),
+	        p.getValorPagoCliente(),
+	        p.getValorTroco(),
+	        p.isPrecisaMaquininha(),
 	        p.getDataHoraPedido(),
 	        p.getDataHoraPreparando(),
 	        p.getDataHoraEntrega(),

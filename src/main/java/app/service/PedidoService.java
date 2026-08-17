@@ -5,6 +5,7 @@ package app.service;
 //import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -45,6 +46,8 @@ import app.entity.ItemPedido;
 import app.entity.Pedido;
 import app.entity.Quiosque;
 import app.entity.Usuario;
+import app.enums.FormaPagamento;
+import app.enums.StatusPagamento;
 import app.enums.StatusPedido;
 import app.enums.UserRole;
 import app.repository.AcompanhamentoRepository;
@@ -219,6 +222,9 @@ public class PedidoService {
 
 		pedido.setCodigoEntrega(data.codigoEntrega());
 		pedido.calcularValorTot();
+		// O pagamento depende do valor total real do pedido, entao so pode ser
+		// validado depois que os itens e adicionais foram processados.
+		configurarPagamento(pedido, data);
 		Long tempEstimado = quiosque.calcularTempoEstimado();
 		pedido.setTempoEstimado(tempEstimado);
 		if(pedido.getCodigoEntrega() == null)
@@ -229,6 +235,55 @@ public class PedidoService {
 		notificarQuiosque(quiosque, salvo, "Novo pedido recebido",
 				"Pedido de " + cliente.getNome());
 		return PedidoGetDTO.from(salvo);
+	}
+
+	private void configurarPagamento(Pedido pedido, PedidoDTO data) {
+		FormaPagamento formaPagamento = data.formaPagamento();
+		// O cliente nao pode criar pedido sem orientar como pretende pagar na
+		// entrega.
+		if (formaPagamento == null) {
+			throw new ResponseStatusException(
+					HttpStatus.BAD_REQUEST,
+					"Forma de pagamento obrigatoria");
+		}
+
+		// Todo pagamento nasce pendente porque o recebimento acontece na entrega.
+		pedido.setFormaPagamento(formaPagamento);
+		pedido.setStatusPagamento(StatusPagamento.PENDENTE);
+		pedido.setPrecisaMaquininha(formaPagamento.precisaMaquininha());
+
+		// Pix/cartao nao precisam de valor em dinheiro nem troco. Cartao ja fica
+		// marcado por precisaMaquininha.
+		if (formaPagamento != FormaPagamento.DINHEIRO) {
+			pedido.setValorPagoCliente(null);
+			pedido.setValorTroco(null);
+			return;
+		}
+
+		BigDecimal valorPagoCliente = data.valorPagoCliente();
+		// Para dinheiro, o app precisa informar quanto o cliente vai entregar
+		// para que o quiosque prepare o troco.
+		if (valorPagoCliente == null) {
+			throw new ResponseStatusException(
+					HttpStatus.BAD_REQUEST,
+					"Informe o valor em dinheiro");
+		}
+
+		valorPagoCliente = valorPagoCliente.setScale(2, RoundingMode.HALF_UP);
+		// Validacao oficial: mesmo que o app falhe ou seja burlado, a API nao
+		// aceita dinheiro menor que o total real do pedido.
+		if (valorPagoCliente.compareTo(pedido.getValorTotal()) < 0) {
+			throw new ResponseStatusException(
+					HttpStatus.BAD_REQUEST,
+					"Valor em dinheiro menor que o total do pedido");
+		}
+
+		pedido.setValorPagoCliente(valorPagoCliente);
+		// Troco oficial persistido. O app cliente nunca envia esse valor porque
+		// o total real pertence ao servidor.
+		pedido.setValorTroco(
+				valorPagoCliente.subtract(pedido.getValorTotal())
+						.setScale(2, RoundingMode.HALF_UP));
 	}
 
 	/**

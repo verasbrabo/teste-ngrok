@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import app.enums.FormaPagamento;
+import app.enums.StatusPagamento;
 import app.enums.StatusPedido;
 import app.enums.UserRole;
 import jakarta.persistence.CascadeType;
@@ -96,6 +98,34 @@ public class Pedido {
     @Column(name = "RssiMedioEntrega", nullable = true)
     private Integer rssiMedioEntrega;
 
+    // Forma escolhida pelo cliente antes de criar o pedido. Representa a
+    // intencao de pagamento na entrega, nao pagamento online confirmado.
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(length = 20, nullable = true)
+    private FormaPagamento formaPagamento;
+
+    // Estado do recebimento. Para o fluxo atual, novos pedidos entram PENDENTE
+    // e o funcionario confirma o pagamento na entrega em evolucao futura.
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(length = 20, nullable = true)
+    private StatusPagamento statusPagamento;
+
+    // Valor que o cliente informou que vai entregar em dinheiro. Nulo para Pix
+    // e cartao, porque nao existe calculo de troco nesses casos.
+    @Column(precision = 10, scale = 2, nullable = true)
+    private BigDecimal valorPagoCliente;
+
+    // Troco oficial calculado pela API usando valorPagoCliente - valorTotal.
+    // Nunca confiamos em troco vindo do app cliente.
+    @Column(precision = 10, scale = 2, nullable = true)
+    private BigDecimal valorTroco;
+
+    // Flag derivada da forma de pagamento para facilitar exibicao no quiosque.
+    @Column(nullable = true)
+    private Boolean precisaMaquininha;
+
 	public void calcularValorTot() {
 		if (itemPedidos == null || itemPedidos.isEmpty()) {
 	        this.valorTotal = BigDecimal.ZERO;
@@ -181,6 +211,46 @@ public class Pedido {
 
     public void setRssiMedioEntrega(Integer rssiMedioEntrega) {
         this.rssiMedioEntrega = rssiMedioEntrega;
+    }
+
+    public FormaPagamento getFormaPagamento() {
+        return formaPagamento;
+    }
+
+    public void setFormaPagamento(FormaPagamento formaPagamento) {
+        this.formaPagamento = formaPagamento;
+    }
+
+    public StatusPagamento getStatusPagamento() {
+        return statusPagamento;
+    }
+
+    public void setStatusPagamento(StatusPagamento statusPagamento) {
+        this.statusPagamento = statusPagamento;
+    }
+
+    public BigDecimal getValorPagoCliente() {
+        return valorPagoCliente;
+    }
+
+    public void setValorPagoCliente(BigDecimal valorPagoCliente) {
+        this.valorPagoCliente = valorPagoCliente;
+    }
+
+    public BigDecimal getValorTroco() {
+        return valorTroco;
+    }
+
+    public void setValorTroco(BigDecimal valorTroco) {
+        this.valorTroco = valorTroco;
+    }
+
+    public boolean isPrecisaMaquininha() {
+        return precisaMaquininha != null && precisaMaquininha;
+    }
+
+    public void setPrecisaMaquininha(boolean precisaMaquininha) {
+        this.precisaMaquininha = precisaMaquininha;
     }
 
 
