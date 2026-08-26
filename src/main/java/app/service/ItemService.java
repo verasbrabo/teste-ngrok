@@ -15,20 +15,16 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import app.DTO.AcompanhamentoViewDTO;
-import app.DTO.IngredienteDTO;
 import app.DTO.ItemCreateRequest;
 import app.DTO.ItemDTO;
 import app.entity.Acompanhamento;
 import app.entity.Categoria;
-import app.entity.Ingrediente;
 import app.entity.Item;
-import app.entity.ItemIngrediente;
 import app.entity.Quiosque;
 import app.entity.Usuario;
 import app.enums.UserRole;
 import app.repository.AcompanhamentoRepository;
 import app.repository.CategoriaRepository;
-import app.repository.IngredienteRepository;
 import app.repository.ItemRepository;
 import app.repository.QuiosqueRepository;
 import jakarta.transaction.Transactional;
@@ -41,8 +37,8 @@ public class ItemService {
 	private CategoriaRepository categoriaRepository;
 	@Autowired
 	private ItemRepository itemRepository;
-	@Autowired
-	private IngredienteRepository ingredienteRepository;
+//	@Autowired
+//	private IngredienteRepository ingredienteRepository;
 	@Autowired
 	private AcompanhamentoRepository acompanhamentoRepository;
 	@Autowired
@@ -51,14 +47,17 @@ public class ItemService {
 	public ItemDTO findById(Long id) {
 		return ItemDTO.getFrom(this.itemRepository.findById(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,"Item não encontrado")));
+		
+		// Colocar findByIdAndStatusAtivo
 	}	
 	@Transactional
 	public ItemDTO save(
 			Usuario administrador,
+			Long id_quiosque,
 			Long id_categoria,
 			ItemCreateRequest data) {
 		
-	    Quiosque quiosque = findQuiosqueForUser(administrador);
+	    Quiosque quiosque = findQuiosqueForUser(administrador, id_quiosque);
 	    
 	    Categoria categoria = categoriaRepository.findByQuiosqueAndId(quiosque, id_categoria)
 	    		.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,"Categoria não encontrada nesse quiosque"));
@@ -77,45 +76,49 @@ public class ItemService {
 	    }
 	    item.setAcompanhamentos(acompanhamentos);
 	    
-	    processarIngredientes(item, data.ingredientes());
+	    item.setIngredientes(String.join(";", data.ingredientes()));
+	    
+//	    processarIngredientes(item, data.ingredientes());
 
 	    categoria.addItem(item);
 	    itemRepository.save(item); 
 	    
 	    return ItemDTO.from(item);
 	}
-	private void processarIngredientes(Item item, List<IngredienteDTO> dtos) {
-	    // A coluna ingrediente.nome é UNIQUE com collation utf8mb4_0900_ai_ci, que
-	    // ignora acento e caixa. A busca antiga (findByNomeInIgnoreCase -> UPPER)
-	    // era sensível a acento, então um "limao" não encontrava o "limão" já
-	    // existente e o INSERT batia na unique -> 500 ao editar/criar item.
-	    // Resolvemos reutilizando a mesma semântica do banco (findFirstByNome,
-	    // igualdade direta na coluna) e normalizando a chave para deduplicar
-	    // ingredientes equivalentes dentro do próprio pedido.
-	    Map<String, Ingrediente> resolvidos = new HashMap<>();
-	    for (IngredienteDTO dto : dtos) {
-	        String chave = normalizarIngrediente(dto.nome());
-	        Ingrediente ing = resolvidos.get(chave);
-	        if (ing == null) {
-	            ing = ingredienteRepository.findFirstByNome(dto.nome())
-	                    .orElseGet(() -> ingredienteRepository.save(new Ingrediente(dto.nome())));
-	            resolvidos.put(chave, ing);
-	        }
-	        item.addIngrediente(ing);
-	    }
-	}
+	
+//	private void processarIngredientes(Item item, List<IngredienteDTO> dtos) {
+//	    // A coluna ingrediente.nome é UNIQUE com collation utf8mb4_0900_ai_ci, que
+//	    // ignora acento e caixa. A busca antiga (findByNomeInIgnoreCase -> UPPER)
+//	    // era sensível a acento, então um "limao" não encontrava o "limão" já
+//	    // existente e o INSERT batia na unique -> 500 ao editar/criar item.
+//	    // Resolvemos reutilizando a mesma semântica do banco (findFirstByNome,
+//	    // igualdade direta na coluna) e normalizando a chave para deduplicar
+//	    // ingredientes equivalentes dentro do próprio pedido.
+//	    Map<String, Ingrediente> resolvidos = new HashMap<>();
+//	    for (IngredienteDTO dto : dtos) {
+//	        String chave = normalizarIngrediente(dto.nome());
+//	        Ingrediente ing = resolvidos.get(chave);
+//	        if (ing == null) {
+//	            ing = ingredienteRepository.findFirstByNome(dto.nome())
+//	                    .orElseGet(() -> ingredienteRepository.save(new Ingrediente(dto.nome())));
+//	            resolvidos.put(chave, ing);
+//	        }
+//	        item.addIngrediente(ing);
+//	    }
+//	}
 
 	/** Normaliza como a collation ai_ci do banco: sem acento e em minúsculas. */
-	private static String normalizarIngrediente(String nome) {
-	    return Normalizer.normalize(nome, Normalizer.Form.NFD)
-	            .replaceAll("\\p{M}", "")
-	            .toLowerCase();
-	}
+//	private static String normalizarIngrediente(String nome) {
+//	    return Normalizer.normalize(nome, Normalizer.Form.NFD)
+//	            .replaceAll("\\p{M}", "")
+//	            .toLowerCase();
+//	}
 	
 	
 	@Transactional
 	public ItemDTO update(
 			Usuario administrador,
+			Long id_quiosque,
 			Long id_categoria,
 			Long id,
 			ItemCreateRequest data) {
@@ -126,16 +129,16 @@ public class ItemService {
 //		
 //		Item item = categoria.getItem(id);
 		
-		Quiosque quiosque = findQuiosqueForUser(administrador);
+		Quiosque quiosque = findQuiosqueForUser(administrador, id_quiosque);
 		
 		Item item = itemRepository.findByIdAndCategoriaIdAndCategoriaQuiosqueId(id, id_categoria, quiosque.getId())
 	    		.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,"Item não encontrado nesse quiosque/categoria"));    
 	    
 	    item.atualizar(data);
-	    if (ingredientesSaoDiferentes(item.getIngredientes(), data.ingredientes())) {
-		    item.getIngredientes().clear();    
-		    processarIngredientes(item, data.ingredientes());
-	    }
+//	    if (ingredientesSaoDiferentes(item.getIngredientes(), data.ingredientes())) {
+//		    item.getIngredientes().clear();    
+//		    processarIngredientes(item, data.ingredientes());
+//	    }
 	    if (acompanhamentosSaoDiferentes(item.getAcompanhamentos(), data.acompanhamentoIds())) {
 
 	    	List<Acompanhamento> acompanhamentos = this.acompanhamentoRepository.findByIdInAndQuiosque(data.acompanhamentoIds(), quiosque);
@@ -155,10 +158,11 @@ public class ItemService {
 	@Transactional
 	public String uploadImagemItem(
 			Usuario administrador,
+			Long id_quiosque,
 			Long id,
 			MultipartFile file) {
 		
-		Item item = itemRepository.findByIdAndCategoriaQuiosqueId(id, findQuiosqueForUser(administrador).getId())
+		Item item = itemRepository.findByIdAndCategoriaQuiosqueId(id, findQuiosqueForUser(administrador, id_quiosque).getId())
 	    		.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,"Item não encontrado nesse quiosque/categoria"));    
 	    
 		return imageService.uploadImagemItem(item, file);	
@@ -168,30 +172,31 @@ public class ItemService {
 	@Transactional
 	public void deleteImagemItem(
 			Usuario administrador,
+			Long id_quiosque,
 			Long id) {
 
 		
-		Item item = itemRepository.findByIdAndCategoriaQuiosqueId(id, findQuiosqueForUser(administrador).getId())
+		Item item = itemRepository.findByIdAndCategoriaQuiosqueId(id, findQuiosqueForUser(administrador, id_quiosque).getId())
 	    		.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,"Item não encontrado nesse quiosque/categoria"));    
 	    
 		
 		imageService.deleteImagemItem(item);
 	}
 	
-	private boolean ingredientesSaoDiferentes(
-	        List<ItemIngrediente> atuais,
-	        List<IngredienteDTO> novos) {
-
-	    Set<Long> idsAtuais = atuais.stream()
-	            .map(ii -> ii.getIngrediente().getId())
-	            .collect(Collectors.toSet());
-
-	    Set<Long> idsNovos = novos.stream()
-	            .map(IngredienteDTO::id)
-	            .collect(Collectors.toSet());
-
-	    return !idsAtuais.equals(idsNovos);
-	}
+//	private boolean ingredientesSaoDiferentes(
+//	        List<ItemIngrediente> atuais,
+//	        List<IngredienteDTO> novos) {
+//
+//	    Set<Long> idsAtuais = atuais.stream()
+//	            .map(ii -> ii.getIngrediente().getId())
+//	            .collect(Collectors.toSet());
+//
+//	    Set<Long> idsNovos = novos.stream()
+//	            .map(IngredienteDTO::id)
+//	            .collect(Collectors.toSet());
+//
+//	    return !idsAtuais.equals(idsNovos);
+//	}
 	
 	private boolean acompanhamentosSaoDiferentes(
 	        List<Acompanhamento> atuais,
@@ -209,6 +214,7 @@ public class ItemService {
 	@Transactional
 	public void deleteById(
 			Usuario administrador,
+			Long id_quiosque,
 			Long id_categoria,
 			Long id){
 		
@@ -220,9 +226,9 @@ public class ItemService {
 //		
 //		categoria.removeItem(categoria.getItem(id));
 		
-		findQuiosqueForUser(administrador);
+		findQuiosqueForUser(administrador, id_quiosque);
 		
-		Item item = itemRepository.findByIdAndCategoriaIdAndCategoriaQuiosqueId(id, id_categoria, findQuiosqueForUser(administrador).getId())
+		Item item = itemRepository.findByIdAndCategoriaIdAndCategoriaQuiosqueId(id, id_categoria, findQuiosqueForUser(administrador, id_quiosque).getId())
 	    		.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,"Item não encontrado nesse quiosque"));
 
 		// Soft delete: o item pode estar referenciado por pedidos antigos
@@ -235,16 +241,16 @@ public class ItemService {
 		this.itemRepository.save(item);
 	}
 	
-	private Quiosque findQuiosqueForUser(Usuario usuario) {
-		Quiosque quiosque;
-		if(usuario.getRole().equals(UserRole.PROPRIETARIO))
-			quiosque = quiosqueRepository.findByProprietario(usuario)
+	private Quiosque findQuiosqueForUser(Usuario usuario, Long id) {
+
+	    Quiosque quiosque = quiosqueRepository.findById(id)
 	        .orElseThrow(() -> new ResponseStatusException(
 	            HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
-		else
-			quiosque = quiosqueRepository.findByFuncionariosContaining(usuario)
-			.orElseThrow(() -> new ResponseStatusException(
-		        HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
+
+	    if (!quiosque.usuarioPossuiAcesso(usuario)) {
+	        throw new ResponseStatusException(
+	            HttpStatus.FORBIDDEN, "Usuário não tem acesso a esse quiosque");
+	    }
 
 	    return quiosque;
 	}

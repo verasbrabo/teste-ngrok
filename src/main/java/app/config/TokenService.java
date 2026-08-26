@@ -25,7 +25,7 @@ public class TokenService {
 			Algorithm algorithm = Algorithm.HMAC256(secret);
 			String token = JWT.create()
 					.withIssuer("Por-do-Sol")
-					.withSubject(user.getEmail())
+					.withSubject(user.getLogin())
 					.withClaim("role", user.getRole().name())
 					.withClaim("trocarSenha", user.getUltimoLogin() == null)
 					.withExpiresAt(genExpirationDate())

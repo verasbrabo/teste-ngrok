@@ -20,11 +20,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import app.DTO.AvaliacaoDTO;
+import app.DTO.EmpresaOverviewDTO;
 import app.DTO.QuiosqueCreateDTO;
 import app.DTO.QuiosqueDTO;
 import app.DTO.QuiosqueUpdateDTO;
 import app.DTO.QuiosqueNearByResponseDTO;
 import app.DTO.QuiosqueViewDTO;
+import app.entity.Funcionario;
 import app.entity.Usuario;
 import app.service.QuiosqueService;
 import jakarta.validation.Valid;
@@ -49,70 +52,94 @@ public class QuiosqueController {
 	@PostMapping
 	@PreAuthorize("hasRole('PROPRIETARIO')")
 	public ResponseEntity<QuiosqueCreateDTO> save(
-			@AuthenticationPrincipal Usuario usuario,
+			@AuthenticationPrincipal Funcionario usuario,
 			@RequestBody @Valid QuiosqueDTO data) {		
 			QuiosqueCreateDTO quiosque = this.quiosqueService.save(usuario, data);
 			 return ResponseEntity.status(HttpStatus.CREATED).body(quiosque);						
 	}
 
-	 @PutMapping("/me")
+	 @PutMapping("/{id_quiosque}")
 	 @PreAuthorize("hasAnyRole('GERENTE')")
 	 public ResponseEntity<QuiosqueCreateDTO> update(
 			 @AuthenticationPrincipal Usuario usuario,
+			 @PathVariable Long id_quiosque,
 			 @RequestBody QuiosqueUpdateDTO data){
-		 QuiosqueCreateDTO quiosque = this.quiosqueService.update(usuario, data);
+		 QuiosqueCreateDTO quiosque = this.quiosqueService.update(usuario, id_quiosque, data);
 		 return ResponseEntity.status(HttpStatus.OK).body(quiosque);	
 	 }
 	  
 	 
-	 @PatchMapping("/me/status")
+	 @PatchMapping("/{id_quiosque}/status")
 	 @PreAuthorize("hasAnyRole('GERENTE')")
 	 public ResponseEntity<QuiosqueCreateDTO> updateStatus(
-			 @AuthenticationPrincipal Usuario usuario){
-		 QuiosqueCreateDTO quiosque = this.quiosqueService.updateStatus(usuario);
+			 @AuthenticationPrincipal Usuario usuario,
+			 @PathVariable Long id_quiosque){
+		 QuiosqueCreateDTO quiosque = this.quiosqueService.updateStatus(usuario, id_quiosque);
 		 return ResponseEntity.status(HttpStatus.OK).body(quiosque);	
 	 }	 	 
 	 
-	@GetMapping("/{id}")
-	public ResponseEntity<QuiosqueViewDTO> view(
-			@PathVariable Long id){
-		return  ResponseEntity.status(HttpStatus.OK).body(
-				this.quiosqueService.findById(id));
-	}
-	
-	@GetMapping("/me")
+	@GetMapping("/{id_quiosque}")
 	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
-	public ResponseEntity<QuiosqueViewDTO> viewFuncionario(
-			@AuthenticationPrincipal Usuario administrador){
+	public ResponseEntity<QuiosqueViewDTO> view(
+			@PathVariable Long id_quiosque){
 		return  ResponseEntity.status(HttpStatus.OK).body(
-				this.quiosqueService.findByFuncionario(administrador));
+				this.quiosqueService.findById(id_quiosque));
 	}
 	
-	@DeleteMapping("/me")
+	@GetMapping("/{id_quiosque}/overview")
+	@PreAuthorize("hasAnyRole('GERENTE')")
+	public ResponseEntity<EmpresaOverviewDTO> overview(
+			@AuthenticationPrincipal Funcionario usuario,
+			@PathVariable Long id_quiosque){
+		return  ResponseEntity.status(HttpStatus.OK).body(
+				this.quiosqueService.overview(usuario, id_quiosque));
+	}
+	
+	@GetMapping("/{id_quiosque}/avaliacoes")
+	public ResponseEntity<List<AvaliacaoDTO>> viewAvaliacoes(
+			@PathVariable Long id_quiosque){
+		
+		return  ResponseEntity.status(HttpStatus.OK).body(
+				this.quiosqueService.findAvaliacoesById(id_quiosque));
+	}
+	
+	
+//	@GetMapping("/me")
+//	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
+//	public ResponseEntity<QuiosqueViewDTO> viewFuncionario(
+//			@AuthenticationPrincipal Usuario administrador){
+//		return  ResponseEntity.status(HttpStatus.OK).body(
+//				this.quiosqueService.findByFuncionario(administrador));
+//	}
+	
+	@DeleteMapping("/{id_quiosque}")
 	@PreAuthorize("hasRole('PROPRIETARIO')")
 	public ResponseEntity<Void> delete(
-			 @AuthenticationPrincipal Usuario usuario){
-		 this.quiosqueService.delete(usuario);
+			 @AuthenticationPrincipal Usuario usuario,
+			 @PathVariable Long id_quiosque){
+		 this.quiosqueService.delete(usuario, id_quiosque);
 		 return ResponseEntity.status(HttpStatus.NO_CONTENT).build();	
 	}
 	
-	@PostMapping("/me/imagem")
+	@PostMapping("/{id_quiosque}/imagem")
 	@PreAuthorize("hasAnyRole('GERENTE')")
 	public ResponseEntity<String> updateImagem(
 			@AuthenticationPrincipal Usuario administrador,
+			@PathVariable Long id_quiosque,
 			@RequestParam MultipartFile file){		
 		
-		String nomeArquivo = this.quiosqueService.uploadImagemQuiosque(administrador, file);
+		String nomeArquivo = this.quiosqueService.uploadImagemQuiosque(administrador, id_quiosque, file);
 		
 		return ResponseEntity.ok(nomeArquivo);
 	}
 	
-	@DeleteMapping("/me/imagem")
+	@DeleteMapping("/{id_quiosque}/imagem")
 	@PreAuthorize("hasAnyRole('GERENTE')")
 	public ResponseEntity<Void> deleteImagem(
-			@AuthenticationPrincipal Usuario administrador) {		
+			@AuthenticationPrincipal Usuario administrador,
+			@PathVariable Long id_quiosque) {		
 		
-		this.quiosqueService.deleteImagemQuiosque(administrador);
+		this.quiosqueService.deleteImagemQuiosque(administrador, id_quiosque);
 		
 		return ResponseEntity.noContent().build();
 	}

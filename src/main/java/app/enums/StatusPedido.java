@@ -5,7 +5,7 @@ import java.util.List;
 import lombok.Getter;
 
 public enum StatusPedido {
-	REJEITADO("Infelizmente, seu pedido foi cancelado pelo restaurante."),
+	REJEITADO("Infelizmente, seu pedido foi cancelado pelo restaurante."), // deixar só o cancelado
     CRIADO("Seu pedido foi recebido pelo restaurante!"),
     ACEITO("Seu pedido foi aceito pelo restaurante!"),
     PREPARANDO("O restaurante confirmou seu pedido e começou a preparar."),

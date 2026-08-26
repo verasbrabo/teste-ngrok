@@ -14,7 +14,7 @@ import lombok.Setter;
 //@NoArgsConstructor
 //@AllArgsConstructor
 @Embeddable
-public class AvaliacaoResumo {
+public class AvaliacaoResumo{
 	private Long somaNota, totalAvaliacoes;
 	
 	public BigDecimal getMedia() {

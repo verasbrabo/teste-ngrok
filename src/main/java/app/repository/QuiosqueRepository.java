@@ -5,7 +5,9 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import app.entity.Funcionario;
 import app.entity.Quiosque;
 import app.entity.Usuario;
 
@@ -24,9 +26,35 @@ public interface QuiosqueRepository extends JpaRepository<Quiosque, Long> {
 	        + "   AND status = 'Ativa'", nativeQuery = true)
 	List<Quiosque> findByDistanciaAtivo(double latUsuario,double lonUsuario, double raioM, double minLat, double maxLat, double minLon, double maxLon);
 	
-	Optional<Quiosque> findByFuncionarios(Usuario administrador);
+	   @Query("""
+			    SELECT q.id
+			    FROM Quiosque q
+			    WHERE q.proprietario = :usuario
+			""")
+			List<Long> findIdsByProprietario(
+			    @Param("usuario") Funcionario usuario
+			);
 	
-	Optional<Quiosque> findByFuncionariosContaining(Usuario administrador);
+	Optional<Quiosque> findByFuncionarios(Funcionario administrador);
 	
-	Optional<Quiosque> findByProprietario(Usuario proprietario);
+	Optional<Quiosque> findByFuncionariosContaining(Funcionario administrador);
+	
+	List<Quiosque> findByProprietario(Funcionario proprietario);
+	
+	boolean existsByEmailOrCnpj(String email, String cnpj);
+	
+	@Query("""
+		    SELECT
+		        p.nota AS nota,
+		        p.comentario AS comentario,
+		        c.nome AS nomeCliente
+		    FROM Pedido p
+		    JOIN p.cliente c
+		    WHERE p.quiosque.id = :quiosqueId
+		      AND p.nota IS NOT NULL
+		""")
+	    List<AvaliacaoProjection> buscarAvaliacoesDoRestaurante(
+	        @Param("quiosqueId") Long quiosqueid
+	    );
+	
 }

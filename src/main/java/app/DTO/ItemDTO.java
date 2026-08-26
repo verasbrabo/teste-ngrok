@@ -1,6 +1,7 @@
 package app.DTO;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 
 import app.entity.Item;
@@ -9,10 +10,9 @@ import jakarta.validation.constraints.NotNull;
 public record ItemDTO(
 		Long id,
 		String nome,
-		String tipo,
 		String descricao,
 		@NotNull
-		List<IngredienteDTO> ingredientes,
+		List<String> ingredientes,
 		List<AcompanhamentoViewDTO> acompanhamentos,
 		BigDecimal valorBase,
 		BigDecimal valorPromo,
@@ -23,9 +23,9 @@ public record ItemDTO(
 	    return new ItemDTO(
 	    	i.getId(),
 	        i.getNome(),
-	        i.getTipo(),
 	        i.getDescricao(),
-	        i.getIngredientes().stream().map(IngredienteDTO::from).toList(),
+//	        i.getIngredientes().stream().map(IngredienteDTO::from).toList(),
+	        Arrays.asList(i.getIngredientes().split(";")),
 	        i.getAcompanhamentos().stream().map(AcompanhamentoViewDTO::from).toList(),
 	        i.getValorBase(),
 	        i.getValorPromo(),
@@ -38,9 +38,8 @@ public record ItemDTO(
 	    return new ItemDTO(
 	    	i.getId(),
 	        i.getNome(),
-	        i.getTipo(),
 	        i.getDescricao(),
-	        i.getIngredientes().stream().map(IngredienteDTO::from).toList(),
+	        Arrays.asList(i.getIngredientes().split(";")),
 	        i.getAcompanhamentos().stream().map(AcompanhamentoViewDTO::from).toList(),
 	        i.getValorBase(),
 	        i.getValorPromo(),

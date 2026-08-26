@@ -32,6 +32,7 @@ public class ItemController {
 	
 	@GetMapping("/itens/{id}")
 	public ResponseEntity<ItemDTO> get(
+			@PathVariable Long id_quiosque,
 			@PathVariable Long id){
 		
 		ItemDTO item = this.itemService.findById(id);
@@ -39,64 +40,69 @@ public class ItemController {
 		return ResponseEntity.ok(item);
 	}
 	
-	@PostMapping("/me/categorias/{id_categoria}/itens")
+	@PostMapping("/{id_quiosque}/categorias/{id_categoria}/itens")
 	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
 	public ResponseEntity<ItemDTO> save(
 			@AuthenticationPrincipal Usuario administrador,
+			@PathVariable Long id_quiosque,
 			@PathVariable Long id_categoria,
 			@RequestBody @Valid ItemCreateRequest data){
 		
-		ItemDTO item = this.itemService.save(administrador, id_categoria, data);
+		ItemDTO item = this.itemService.save(administrador, id_quiosque, id_categoria, data);
 		
 	    return ResponseEntity.status(HttpStatus.CREATED).body(item);
 	}
 	
-	@PutMapping("/me/categorias/{id_categoria}/itens/{id}")
+	@PutMapping("/{id_quiosque}/categorias/{id_categoria}/itens/{id}")
 	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
 	public ResponseEntity<ItemDTO> update(
 			@AuthenticationPrincipal Usuario administrador,
+			@PathVariable Long id_quiosque,
 			@PathVariable Long id_categoria,
 			@PathVariable Long id,
 			@RequestBody @Valid ItemCreateRequest data){	
 		
-		ItemDTO item = this.itemService.update(administrador, id_categoria, id, data);
+		ItemDTO item = this.itemService.update(administrador, id_quiosque, id_categoria, id, data);
 		
 		return ResponseEntity.ok(item);
 	}
 	
-	@DeleteMapping("/me/categorias/{id_categoria}/itens/{id}")
+	@DeleteMapping("/{id_quiosque}/categorias/{id_categoria}/itens/{id}")
 	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
 	public ResponseEntity<Void> delete(
 			@AuthenticationPrincipal Usuario administrador,
+			@PathVariable Long id_quiosque,
 			@PathVariable Long id_categoria,
 			@PathVariable Long id){
 		
-		this.itemService.deleteById(administrador,  id_categoria, id);
+		this.itemService.deleteById(administrador, id_quiosque,  id_categoria, id);
 			
 		return ResponseEntity.noContent().build();
 	}
 	
-	@PostMapping("/me/categorias/{id_categoria}/itens/{id}/imagem")
+	@PostMapping("/{id_quiosque}/categorias/{id_categoria}/itens/{id}/imagem")
 	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
 	public ResponseEntity<String> updateImagem(
 			@AuthenticationPrincipal Usuario administrador,
+			@PathVariable Long id_quiosque,
 			@PathVariable Long id_categoria,
 			@PathVariable Long id,
 			@RequestParam MultipartFile file){		
 		
-		String nomeArquivo = this.itemService.uploadImagemItem(administrador, id, file);
+		String nomeArquivo = this.itemService.uploadImagemItem(administrador, id_quiosque, id, file);
 		
 		return ResponseEntity.ok(nomeArquivo);
 	}
 	
-	@DeleteMapping("/me/categorias/{id_categoria}/itens/{id}/imagem")
+	@DeleteMapping("/{id_quiosque}/categorias/{id_categoria}/itens/{id}/imagem")
 	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
 	public ResponseEntity<Void> deleteImagem(
 			@AuthenticationPrincipal Usuario administrador,
+			@PathVariable Long id_quiosque,
 			@PathVariable Long id_categoria,
 			@PathVariable Long id) {		
 		
-		this.itemService.deleteImagemItem(administrador, id);
+		this.itemService.deleteImagemItem(administrador, id_quiosque, id);
 		
 		return ResponseEntity.noContent().build();
 	}

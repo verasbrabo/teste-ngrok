@@ -28,6 +28,7 @@ import app.DTO.AvaliarDTO;
 import app.DTO.MotivoCancelamentoDTO;
 import app.DTO.PedidoCreateResponseDTO;
 import app.DTO.ValidarCodigoDTO;
+import app.entity.Cliente;
 import app.entity.Pedido;
 import app.entity.Usuario;
 import app.enums.StatusPedido;
@@ -81,22 +82,23 @@ public class PedidoController {
 	    
 	}
 	
-	@PreAuthorize("hasAnyRole('FUNCIONARIO','CLIENTE')")
+	@PreAuthorize("hasRole('CLIENTE')")
 	@PostMapping("/pedidos")
 	public ResponseEntity<PedidoGetDTO> createMeuPedido(
-								@AuthenticationPrincipal Usuario cliente,
+								@AuthenticationPrincipal Cliente cliente,
 								@RequestBody @Valid PedidoDTO data) {
 
 		return ResponseEntity.status(HttpStatus.CREATED).body(this.pedidoService.createMeuPedido(cliente, data));
 	}
 
 	@PreAuthorize("hasRole('FUNCIONARIO')")
-	@PostMapping("/quiosques/me/pedidos/interno")
+	@PostMapping("/quiosques/{id_quiosque}/pedidos/interno")
 	public ResponseEntity<PedidoGetDTO> createPedidoInterno(
 								@AuthenticationPrincipal Usuario funcionario,
+								@PathVariable Long id_quiosque,
 								@RequestBody @Valid PedidoInternoDTO data) {
 
-		return ResponseEntity.status(HttpStatus.CREATED).body(this.pedidoService.createPedidoInterno(funcionario, data));
+		return ResponseEntity.status(HttpStatus.CREATED).body(this.pedidoService.createPedidoInterno(funcionario, id_quiosque, data));
 	}
 	
 	@PreAuthorize("hasAnyRole('FUNCIONARIO','CLIENTE')")
@@ -127,93 +129,102 @@ public class PedidoController {
 	}
 
 	@PreAuthorize("hasRole('FUNCIONARIO')")
-	@PostMapping("/pedidos/{id}/validar-codigo")
+	@PostMapping("/quiosques/{id_quiosque}/pedidos/{id}/validar-codigo")
 	public ResponseEntity<Boolean> validarCodigo(
 						 @AuthenticationPrincipal Usuario entregador,
+						 @PathVariable Long id_quiosque,
 						 @PathVariable UUID id, 
 						 @RequestBody @Valid ValidarCodigoDTO data) {
-		return ResponseEntity.ok(pedidoService.validarCodigo(entregador, id, data));
+		return ResponseEntity.ok(pedidoService.validarCodigo(entregador, id_quiosque, id, data));
 	}
 	
-	@GetMapping("/quiosques/me/pedidos")
+	@GetMapping("/quiosques/{id_quiosque}/pedidos")
 	@PreAuthorize("hasRole('FUNCIONARIO')")
 	public List<PedidoGetDTO> getPedidos(
 	        @AuthenticationPrincipal Usuario admin,
+	        @PathVariable Long id_quiosque,
 	        @RequestParam(required = false) StatusPedido status
 //	        ,Pageable pageable
 	        ) {
-		
-		List<Pedido> pedidos = pedidoService.getPedidos(admin, status);
+		// N + 1
+		List<Pedido> pedidos = pedidoService.getPedidos(admin, id_quiosque, status);
 	    
 	    return pedidos.stream().map(PedidoGetDTO::from).toList();
 	}
 	
-	@GetMapping("/quiosques/me/pedidos/ativos")
+	@GetMapping("/quiosques/{id_quiosque}/pedidos/ativos")
 	@PreAuthorize("hasRole('FUNCIONARIO')")
 	public List<PedidoGetDTO> getPedidosAtivos(
-	        @AuthenticationPrincipal Usuario admin
+	        @AuthenticationPrincipal Usuario admin,
+	        @PathVariable Long id_quiosque
 //	        ,Pageable pageable
 	        ) {
 		
-		List<Pedido> pedidos = pedidoService.getPedidosAtivos(admin);
+		List<Pedido> pedidos = pedidoService.getPedidosAtivos(admin, id_quiosque);
 	    
 	    return pedidos.stream().map(PedidoGetDTO::from).toList();
 	}
 	
-	@GetMapping("/quiosques/me/pedidos/entregar")
+	@GetMapping("/quiosques/{id_quiosque}/pedidos/entregar")
 	@PreAuthorize("hasRole('FUNCIONARIO')")
 	public ResponseEntity<PedidoGetDTO> getPedidoEntregador(
-	        @AuthenticationPrincipal Usuario admin) {
+	        @AuthenticationPrincipal Usuario admin,
+	        @PathVariable Long id_quiosque) {
 		
-		Pedido pedido = pedidoService.getPedidoEntregador(admin);
+		Pedido pedido = pedidoService.getPedidoEntregador(admin, id_quiosque);
 	    
 	    return ResponseEntity.ok(PedidoGetDTO.from(pedido));
 	}
 	
-	@PostMapping("/quiosques/me/pedidos/{id}/entregador")
+	@PostMapping("/quiosques/{id_quiosque}/pedidos/{id}/entregador")
 	@PreAuthorize("hasRole('FUNCIONARIO')")
 	public ResponseEntity<PedidoGetDTO> entregadorPedido(
 			@AuthenticationPrincipal Usuario admin,
+			@PathVariable Long id_quiosque,
 			@PathVariable UUID id) {
 		
-		return ResponseEntity.ok(pedidoService.entregadorPedido(admin, id));
+		return ResponseEntity.ok(pedidoService.entregadorPedido(admin, id_quiosque, id));
 	}
 	
-	@PatchMapping("/quiosques/me/pedidos/{id}")
+	@PatchMapping("/quiosques/{id_quiosque}/pedidos/{id}")
 	@PreAuthorize("hasRole('FUNCIONARIO')")
 	public ResponseEntity<PedidoGetDTO> updatePedido(
 			@AuthenticationPrincipal Usuario admin,
+			@PathVariable Long id_quiosque,
 			@PathVariable UUID id,
 	        @RequestBody  AtualizarStatusDTO data) {
-	    return ResponseEntity.ok(pedidoService.updatePedido(id, admin, data));
+	    return ResponseEntity.ok(pedidoService.updatePedido(id, id_quiosque, admin, data));
 	}
 
 	// Atualiza a telemetria de proximidade calculada pelo app do quiosque.
 	// Nao finaliza pedido; serve apenas para expor o RSSI medio quando necessario.
-	@PatchMapping("/quiosques/me/pedidos/{id}/proximidade")
+	@PatchMapping("/quiosques/{id_quiosque}/pedidos/{id}/proximidade")
 	@PreAuthorize("hasRole('FUNCIONARIO')")
 	public ResponseEntity<PedidoGetDTO> atualizarProximidadeEntrega(
 			@AuthenticationPrincipal Usuario admin,
+			@PathVariable Long id_quiosque,
 			@PathVariable UUID id,
 	        @RequestBody @Valid AtualizarProximidadeDTO data) {
-	    return ResponseEntity.ok(pedidoService.atualizarProximidadeEntrega(id, admin, data));
+	    return ResponseEntity.ok(pedidoService.atualizarProximidadeEntrega(id, id_quiosque, admin, data));
 	}
 	
 	@PreAuthorize("hasAnyRole('FUNCIONARIO','CLIENTE')")
-	@PostMapping("/quiosque/me/pedidos/{id}/cancelar")
+	@PostMapping("/quiosque/{id_quiosque}/pedidos/{id}/cancelar")
 	public ResponseEntity<PedidoGetDTO> quiosqueCancelarPedidoQ(
 			@AuthenticationPrincipal Usuario cliente,
+			@PathVariable Long id_quiosque,
 			@PathVariable UUID id,
 			@RequestBody MotivoCancelamentoDTO data
 			){
-		return ResponseEntity.ok(this.pedidoService.quiosqueCancelarPedido(cliente, id, data));
+		return ResponseEntity.ok(this.pedidoService.quiosqueCancelarPedido(cliente, id_quiosque, id, data));
 	}
 	
-	@PatchMapping("/quiosques/me/pedidos/{id}/rejeitar")
+	@PatchMapping("/quiosques/{id_quiosque}/pedidos/{id}/rejeitar")
 	@PreAuthorize("hasRole('FUNCIONARIO')")
 	public ResponseEntity<PedidoCreateResponseDTO> rejeitarPedido(
 			@AuthenticationPrincipal Usuario admin,
+			@PathVariable Long id_quiosque,
 			@PathVariable UUID id) {
-	    return ResponseEntity.ok(pedidoService.rejeitarPedido(admin, id));
+	    return ResponseEntity.ok(pedidoService.rejeitarPedido(admin, id_quiosque, id));
 	}
 }

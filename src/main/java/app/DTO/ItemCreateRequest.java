@@ -11,7 +11,7 @@ public record ItemCreateRequest(
 		String tipo,
 		String descricao,
 		@NotNull
-		List<IngredienteDTO> ingredientes,
+		List<String> ingredientes,
 		List<Long> acompanhamentoIds,
 		BigDecimal valorBase,
 		BigDecimal valorPromo,

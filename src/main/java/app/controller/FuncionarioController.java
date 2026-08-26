@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import app.DTO.FuncionarioResponseDTO;
+import app.DTO.RegisterFuncionarioDTO;
 import app.DTO.TrocarSenhaDTO;
 import app.auth.AuthService;
 import app.auth.DTO.RegisterAdminResponseDTO;
@@ -31,7 +32,7 @@ import jakarta.validation.Valid;
 
 @RestController
 //@CrossOrigin("http://localhost")
-@RequestMapping("/quiosques/me/funcionarios")
+@RequestMapping("/quiosques/{id_quiosque}/funcionarios")
 public class FuncionarioController {
 
 	@Autowired
@@ -43,16 +44,18 @@ public class FuncionarioController {
 	@PreAuthorize("hasAnyRole('GERENTE')")
 	public ResponseEntity<RegisterAdminResponseDTO> save(
 			@AuthenticationPrincipal Usuario usuario,
-			@RequestBody @Valid RegisterDTO data){		
-		RegisterAdminResponseDTO user = authService.registerFuncionario(usuario, data);
+			@PathVariable Long id_quiosque,
+			@RequestBody @Valid RegisterFuncionarioDTO data){		
+		RegisterAdminResponseDTO user = authService.registerFuncionario(usuario, id_quiosque, data);
 		return ResponseEntity.status(HttpStatus.CREATED).body(user);
 	}
 	
 	@GetMapping
 	@PreAuthorize("hasAnyRole('GERENTE')")
 	public ResponseEntity<List<FuncionarioResponseDTO>> getFuncionarios(
-			@AuthenticationPrincipal Usuario usuario){		
-		List<FuncionarioResponseDTO> user = funcionarioService.getFuncionarios(usuario);
+			@AuthenticationPrincipal Usuario usuario,
+			@PathVariable Long id_quiosque){		
+		List<FuncionarioResponseDTO> user = funcionarioService.getFuncionarios(usuario, id_quiosque);
 		return ResponseEntity.status(HttpStatus.OK).body(user);
 	}
 	
@@ -60,8 +63,9 @@ public class FuncionarioController {
 	@PreAuthorize("hasAnyRole('GERENTE')")
 	public ResponseEntity<FuncionarioResponseDTO> getFuncionario(
 			@AuthenticationPrincipal Usuario usuario,
+			@PathVariable Long id_quiosque,
 			@PathVariable UUID id){		
-		FuncionarioResponseDTO user = funcionarioService.getFuncionario(usuario, id);
+		FuncionarioResponseDTO user = funcionarioService.getFuncionario(usuario, id_quiosque, id);
 		return ResponseEntity.status(HttpStatus.OK).body(user);
 	}
 	
@@ -69,9 +73,10 @@ public class FuncionarioController {
 	@PreAuthorize("hasAnyRole('GERENTE')")
 	public ResponseEntity<FuncionarioResponseDTO> putFuncionario(
 			@AuthenticationPrincipal Usuario usuario,
+			@PathVariable Long id_quiosque,
 			@PathVariable UUID id,
-			@RequestBody @Valid RegisterDTO data){		
-		FuncionarioResponseDTO user = funcionarioService.putFuncionario(usuario,  id, data);
+			@RequestBody @Valid RegisterFuncionarioDTO data){		
+		FuncionarioResponseDTO user = funcionarioService.putFuncionario(usuario, id_quiosque,  id, data);
 		return ResponseEntity.status(HttpStatus.OK).body(user);
 	}
 	
@@ -79,8 +84,9 @@ public class FuncionarioController {
 	@PreAuthorize("hasAnyRole('GERENTE')")
 	public ResponseEntity<String> resetPassword(
 			@AuthenticationPrincipal Usuario usuario,
+			@PathVariable Long id_quiosque,
 			@PathVariable UUID id){		
-		return ResponseEntity.ok(funcionarioService.resetPassword(usuario, id));
+		return ResponseEntity.ok(funcionarioService.resetPassword(usuario, id_quiosque, id));
 	}
 	
 //	@PatchMapping("/me")
@@ -97,8 +103,9 @@ public class FuncionarioController {
 	@PreAuthorize("hasAnyRole('GERENTE')")
 	public ResponseEntity<Void> deleteFuncionario(
 			@AuthenticationPrincipal Usuario usuario,
+			@PathVariable Long id_quiosque,
 			@PathVariable UUID id){		
-		funcionarioService.deleteFuncionario(usuario, id);
+		funcionarioService.deleteFuncionario(usuario, id_quiosque, id);
 		return ResponseEntity.noContent().build();
 	}
 	
@@ -107,10 +114,11 @@ public class FuncionarioController {
 	@PreAuthorize("hasAnyRole('GERENTE')")
 	public ResponseEntity<String> updateImagem(
 			@AuthenticationPrincipal Usuario usuario,
+			@PathVariable Long id_quiosque,
 			@PathVariable UUID id,
 			@RequestParam MultipartFile file){		
 		
-		String nomeArquivo = this.funcionarioService.uploadImagemUsuario(usuario, id, file);
+		String nomeArquivo = this.funcionarioService.uploadImagemUsuario(usuario, id_quiosque, id, file);
 		
 		return ResponseEntity.ok(nomeArquivo);
 	}
@@ -119,9 +127,10 @@ public class FuncionarioController {
 	@PreAuthorize("hasAnyRole('GERENTE')")
 	public ResponseEntity<Void> deleteImagem(
 			@AuthenticationPrincipal Usuario usuario,
+			@PathVariable Long id_quiosque,
 			@PathVariable UUID id) {		
 		
-		this.funcionarioService.deleteImagemUsuario(usuario, id);
+		this.funcionarioService.deleteImagemUsuario(usuario, id_quiosque, id);
 		
 		return ResponseEntity.noContent().build();
 	}

@@ -19,7 +19,7 @@ public record UsuarioResponseDTO(
 		return new UsuarioResponseDTO(
 				u.getPublicId(),
 				u.getNome(),
-				u.getEmail(),
+				u.getLogin(),
 				u.getTelefone(),
 				u.getDataCadastro(),
 				u.getImagem() != null ? u.getImagem().getUrl() : null,

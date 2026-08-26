@@ -9,6 +9,8 @@ import app.enums.StatusPedido;
 
 public record PedidoCreateResponseDTO(
 		UUID id,
+		BigDecimal subTotal,
+	    BigDecimal desconto,
 		BigDecimal valorTotal,
 		LocalDateTime dataHoraPedido,
 		Long tempoEstimado,
@@ -20,6 +22,8 @@ public record PedidoCreateResponseDTO(
 	public static PedidoCreateResponseDTO from(Pedido p) {
 	    return new PedidoCreateResponseDTO(
 	    	p.getId(),
+	        p.getSubTotal(),
+	        p.getDesconto(),
 	        p.getValorTotal(),
 	        p.getDataHoraPedido(),
 	        p.getTempoEstimado(),

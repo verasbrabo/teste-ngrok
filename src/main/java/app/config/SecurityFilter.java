@@ -35,7 +35,7 @@ public class SecurityFilter extends OncePerRequestFilter{
 			var login = tokenService.validateToken(token);
 			if(login.equals(""))
 				throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
-			UserDetails user = userRepository.findByEmail(login);
+			UserDetails user = userRepository.findByLogin(login);
 			
 			var authentication = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
 			SecurityContextHolder.getContext().setAuthentication(authentication);

@@ -26,8 +26,8 @@ public class AcompanhamentoService {
 	private AcompanhamentoRepository acompanhamentoRepository;
 
 	
-	public List<AcompanhamentoViewDTO> findByQuiosque(Usuario usuario){
-		Quiosque quiosque = findQuiosqueForUser(usuario);
+	public List<AcompanhamentoViewDTO> findByQuiosque(Usuario usuario, Long id_quiosque){
+		Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);
 		
 		List<Acompanhamento> acompanhamentos = this.acompanhamentoRepository.findByQuiosque(quiosque);			
 		
@@ -35,9 +35,9 @@ public class AcompanhamentoService {
 	}
 	
 	@Transactional
-	public AcompanhamentoViewDTO save(Usuario usuario, AcompanhamentoCreateDTO data) {
+	public AcompanhamentoViewDTO save(Usuario usuario, Long id_quiosque, AcompanhamentoCreateDTO data) {
 
-	    Quiosque quiosque = findQuiosqueForUser(usuario);
+	    Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);
 	    
 	    Acompanhamento acompanhamento = new Acompanhamento(data.nome(), data.valor());
 	    
@@ -47,9 +47,9 @@ public class AcompanhamentoService {
 	}
 	
 	@Transactional
-	public AcompanhamentoViewDTO update(Usuario usuario, Long id, AcompanhamentoCreateDTO data) {
+	public AcompanhamentoViewDTO update(Usuario usuario, Long id_quiosque, Long id, AcompanhamentoCreateDTO data) {
 		
-		Quiosque quiosque = findQuiosqueForUser(usuario);		
+		Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);		
 		
 		Acompanhamento acompanhamento = this.acompanhamentoRepository.findByQuiosqueAndId(quiosque, id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Acompanhamento não encontrado nesse quiosque")));
@@ -61,9 +61,9 @@ public class AcompanhamentoService {
 	}
 	
 	@Transactional
-	public void deleteById(Usuario usuario, Long id){
+	public void deleteById(Usuario usuario, Long id_quiosque, Long id){
 		
-		Quiosque quiosque = findQuiosqueForUser(usuario);
+		Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);
 		
 		Acompanhamento acompanhamento = this.acompanhamentoRepository.findByQuiosqueAndId(quiosque, id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Acompanhamento não encontrado  nesse quiosque")));	
@@ -71,17 +71,31 @@ public class AcompanhamentoService {
 		acompanhamentoRepository.delete(acompanhamento);
 	}	
 	
-	private Quiosque findQuiosqueForUser(Usuario usuario) {
-		Quiosque quiosque;
-		if(usuario.getRole().equals(UserRole.PROPRIETARIO))
-			quiosque = quiosqueRepository.findByProprietario(usuario)
+	private Quiosque findQuiosqueForUser(Usuario usuario, Long id) {
+
+	    Quiosque quiosque = quiosqueRepository.findById(id)
 	        .orElseThrow(() -> new ResponseStatusException(
 	            HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
-		else
-			quiosque = quiosqueRepository.findByFuncionariosContaining(usuario)
-			.orElseThrow(() -> new ResponseStatusException(
-		        HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
+
+	    if (!quiosque.usuarioPossuiAcesso(usuario)) {
+	        throw new ResponseStatusException(
+	            HttpStatus.FORBIDDEN, "Usuário não tem acesso a esse quiosque");
+	    }
 
 	    return quiosque;
 	}
+	
+//	private Quiosque findQuiosqueForUser(Usuario usuario) {
+//		Quiosque quiosque;
+//		if(usuario.getRole().equals(UserRole.PROPRIETARIO))
+//			quiosque = quiosqueRepository.findByProprietario(usuario)
+//	        .orElseThrow(() -> new ResponseStatusException(
+//	            HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
+//		else
+//			quiosque = quiosqueRepository.findByFuncionariosContaining(usuario)
+//			.orElseThrow(() -> new ResponseStatusException(
+//		        HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
+//
+//	    return quiosque;
+//	}
 }

@@ -14,5 +14,5 @@ public record ItemPedidoDTO(
 	    @Positive
 	    Integer quantidade,
 	    List<Long> acompanhamentosid,
-	    List<Long> ingredientesid
+	    List<String> ingredientes
 	) {}

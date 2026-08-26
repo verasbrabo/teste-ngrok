@@ -1,5 +1,6 @@
 package app.auth.DTO;
 
+
 import app.enums.UserRole;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -18,7 +19,9 @@ public record RegisterDTO(
 		@NotNull
 		UserRole role,
 		@NotBlank
-		String telefone) {
+		String telefone
+		
+		) {
 
 
 

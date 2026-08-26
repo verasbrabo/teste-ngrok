@@ -1,7 +1,9 @@
 package app.auth;
 
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,17 +18,22 @@ import org.springframework.web.server.ResponseStatusException;
 
 import app.DTO.FuncionarioResponseDTO;
 import app.DTO.NotificationTokenDTO;
+import app.DTO.RegisterFuncionarioDTO;
 import app.DTO.TrocarSenhaDTO;
 import app.DTO.UpdateMeDTO;
 import app.DTO.UsuarioResponseDTO;
 import app.auth.DTO.RegisterAdminResponseDTO;
 import app.auth.DTO.RegisterDTO;
+import app.entity.Cliente;
+import app.entity.Funcionario;
 import app.entity.Quiosque;
 import app.entity.Usuario;
 import app.enums.StatusConta;
 import app.enums.UserRole;
+import app.repository.PedidoRepository;
 import app.repository.QuiosqueRepository;
 import app.service.ImageService;
+import app.service.SenhaCriptoService;
 import jakarta.transaction.Transactional;
 
 
@@ -43,35 +50,39 @@ public class AuthService implements UserDetailsService{
 	@Autowired
 	private ImageService imageService;
 	@Autowired
-	private app.repository.PedidoRepository pedidoRepository;
+	private PedidoRepository pedidoRepository;
 	@Autowired
-	private app.service.SenhaCriptoService senhaCriptoService;
+	private SenhaCriptoService senhaCriptoService;
 	
 	@Override
 	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-		// Trocar aqui para Optional<User> findByEmailOrPhone(String email, String phone);
-		return usuarioRepository.findByEmail(username);
+		return usuarioRepository.findByLogin(username);
 	}
 	
 	public Usuario register(RegisterDTO data){
-
-	    if(usuarioRepository.findByEmail(data.email()) != null)
+	    if(usuarioRepository.findByLogin(data.email()) != null)
 	        throw new RuntimeException("Usuário já cadastrado");
 	    if(!data.role().equals(UserRole.PROPRIETARIO) && !data.role().equals(UserRole.CLIENTE)) {
 	    	throw new ResponseStatusException(
 	                HttpStatus.UNAUTHORIZED, "Apenas gerentes podem cadastrar funcionarios");
 	    }
 	    String encryptedPassword = passwordEncoder.encode(data.password());
-	    Usuario user = new Usuario(data.nome(), data.email(), encryptedPassword, normalizarCpf(data.cpf()), data.telefone(),data.role());
+	    Usuario user;
+	    if(data.role().equals(UserRole.CLIENTE))
+	    	user = new Cliente(data.nome(), data.email(), encryptedPassword, normalizarCpf(data.cpf()), data.telefone(),data.role());
+	    else
+	    	user = new Funcionario(data.nome(), data.email(), encryptedPassword, normalizarCpf(data.cpf()), data.telefone(),data.role());
+	    
 	    user.setUltimoLogin(LocalDateTime.now());
+	    
 	    return usuarioRepository.save(user);
 	}
 	
-	public RegisterAdminResponseDTO registerFuncionario(Usuario usuario, RegisterDTO data){
-	    if(usuarioRepository.findByEmail(data.email()) != null)
+	public RegisterAdminResponseDTO registerFuncionario(Usuario usuario, Long id_quiosque, RegisterFuncionarioDTO data){
+	    if(usuarioRepository.findByLogin(data.email()) != null)
 	        throw new RuntimeException("Usuário já cadastrado");
 
-	    Quiosque quiosque = findQuiosqueForUser(usuario);
+	    Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);
 	    
 	    String senha = UUID.randomUUID().toString().substring(0, 8);
 	    
@@ -83,14 +94,54 @@ public class AuthService implements UserDetailsService{
 	    UserRole role = data.role() == UserRole.GERENTE
 	    		? UserRole.GERENTE
 	    		: UserRole.FUNCIONARIO;
-	    Usuario user = new Usuario(data.nome(), data.email(), encryptedPassword, normalizarCpf(data.cpf()), data.telefone(), role);
+	    
+	    // Gerar um login usando personalizado usando o nome e o quiosque 
+	    
+	    String login = gerarUsername(data.nome(), quiosque.getCodigo());
+	    
+	    login = procurarDuplicatas(login);
+	    
+	    Funcionario user = new Funcionario(data.nome(), login, encryptedPassword, normalizarCpf(data.cpf()), data.telefone(), role);
+	    
+	    user.setInicioTurno(data.startShift());
+	    user.setFimTurno(data.finishShift());
 	    user.setSenhaCifrada(senhaCriptoService.cifrar(senha));
 	    user.setQuiosque(quiosque);
 	    quiosque.getFuncionarios().add(user);
 	    user = this.usuarioRepository.save(user);
 	    this.quiosqueRepository.save(quiosque);
-	    RegisterAdminResponseDTO response = new RegisterAdminResponseDTO(user.getPublicId(), quiosque.getNome(), senha, user.getNome(),user.getEmail(), user.getRole(), user.getTelefone());
+	    RegisterAdminResponseDTO response = new RegisterAdminResponseDTO(user.getPublicId(), quiosque.getNome(), senha, user.getNome(),user.getLogin(), user.getRole(), user.getTelefone());
 	    return response;
+	}
+	
+	private String procurarDuplicatas(String username) {
+		List<String> usernames = usuarioRepository.findLoginByBase(username);
+		
+		if(!usernames.contains(username)) 
+			return username;
+		
+		int count = 2;
+		while(usernames.contains(username + count))
+			count++;
+		return username + count;
+	}
+	
+	private String gerarUsername(String nomeCompleto, String codigoQuiosque) {
+		String[] partes = nomeCompleto.trim().split("\\s+");
+		String nome = normalizar(partes[0]);
+		if(partes.length == 1)
+			return codigoQuiosque + nome;
+		String sobrenome = normalizar(partes[partes.length - 1]);
+		
+		return codigoQuiosque + nome + sobrenome;
+	}
+	
+	private String normalizar(String texto) {
+		return Normalizer
+				.normalize(texto, Normalizer.Form.NFD)
+				.replaceAll("\\p{M}", "")
+				.toLowerCase()
+				.replaceAll("[^a-z0-9]", "");
 	}
 
 	// CPF é opcional (funcionário/gerente não o informam), mas a coluna
@@ -99,8 +150,50 @@ public class AuthService implements UserDetailsService{
 	// "Column 'cpf' cannot be null" (não há unique em cpf, então "" repetido
 	// não conflita).
 	private static String normalizarCpf(String cpf) {
-		return (cpf == null) ? "" : cpf;
+		return validarCPF(cpf) ? "" : cpf;
 	}
+	
+	private static boolean validarCPF(String cpf) {
+	    // Remove pontos e hífen
+	    cpf = cpf.replaceAll("\\D", "");
+
+	    if(cpf == null) {
+	    	return false;
+	    }
+	    
+	    // CPF deve ter exatamente 11 dígitos
+	    if (cpf.length() != 11) {
+	        return false;
+	    }
+
+	    // Rejeita CPFs com todos os dígitos iguais
+	    if (cpf.matches("(\\d)\\1{10}")) {
+	        return false;
+	    }
+
+	    // Primeiro dígito verificador
+	    int soma = 0;
+	    for (int i = 0; i < 9; i++) {
+	        soma += Character.getNumericValue(cpf.charAt(i)) * (10 - i);
+	    }
+
+	    int resto = soma % 11;
+	    int digito1 = (resto < 2) ? 0 : 11 - resto;
+
+	    // Segundo dígito verificador
+	    soma = 0;
+	    for (int i = 0; i < 10; i++) {
+	        soma += Character.getNumericValue(cpf.charAt(i)) * (11 - i);
+	    }
+
+	    resto = soma % 11;
+	    int digito2 = (resto < 2) ? 0 : 11 - resto;
+
+	    // Compara os dígitos calculados com os do CPF
+	    return digito1 == Character.getNumericValue(cpf.charAt(9))
+	        && digito2 == Character.getNumericValue(cpf.charAt(10));
+	}
+
 
 	@Transactional
 	public UsuarioResponseDTO putUsuario(Usuario user, UpdateMeDTO data){
@@ -122,7 +215,7 @@ public class AuthService implements UserDetailsService{
 	}
 	
 	@Transactional
-	public void deleteMe(Usuario user) {
+	public void deleteMe(Funcionario user) {
 		// Remove os pedidos do cliente antes de apagar o usuário; sem isso a FK
 		// pedido.idCliente -> usuario bloqueia a exclusão (DataIntegrityViolation).
 		// Os itemPedidos saem em cascata (Pedido.itemPedidos = CascadeType.ALL).
@@ -137,11 +230,20 @@ public class AuthService implements UserDetailsService{
 		// vínculo com o proprietário (senão quiosque.proprietario_id -> usuario
 		// bloqueia a exclusão do usuário).
 		if (user.getRole() == UserRole.PROPRIETARIO) {
-			quiosqueRepository.findByProprietario(user).ifPresent(q -> {
-				q.setProprietario(null);
-				q.setStatus(StatusConta.Desativada);
-				quiosqueRepository.save(q);
-			});
+				// Set quiosques desativado
+				List<Quiosque> qs = quiosqueRepository.findByProprietario(user);
+				qs.stream().forEach(q -> q.setStatus(StatusConta.Desativada));
+				user.setQuiosques(null);
+				quiosqueRepository.saveAll(qs);
+			
+			// Ainda não testei isso aqui
+			
+//			quiosqueRepository.findByEmpresaProprietario(user).ifPresent(q -> {
+//				q.getEmpresa().setStatus(StatusConta.Desativada);
+//				q.setEmpresa(null);
+//				q.setStatus(StatusConta.Desativada);
+//				quiosqueRepository.save(q);
+//			});
 		}
 
 		if(user.getImagem() != null)
@@ -169,16 +271,16 @@ public class AuthService implements UserDetailsService{
 		imageService.deleteImagemUsuario(usuario);
 	}
 	
-	private Quiosque findQuiosqueForUser(Usuario usuario) {
-		Quiosque quiosque;
-		if(usuario.getRole().equals(UserRole.PROPRIETARIO))
-			quiosque = quiosqueRepository.findByProprietario(usuario)
+	private Quiosque findQuiosqueForUser(Usuario usuario, Long id) {
+
+	    Quiosque quiosque = quiosqueRepository.findById(id)
 	        .orElseThrow(() -> new ResponseStatusException(
 	            HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
-		else
-			quiosque = quiosqueRepository.findByFuncionariosContaining(usuario)
-			.orElseThrow(() -> new ResponseStatusException(
-		        HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
+
+	    if (!quiosque.usuarioPossuiAcesso(usuario)) {
+	        throw new ResponseStatusException(
+	            HttpStatus.FORBIDDEN, "Usuário não tem acesso a esse quiosque");
+	    }
 
 	    return quiosque;
 	}

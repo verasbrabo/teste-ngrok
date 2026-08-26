@@ -23,7 +23,7 @@ import app.service.AcompanhamentoService;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/quiosques/me/acompanhamentos")
+@RequestMapping("/quiosques/{id_quiosque}/acompanhamentos")
 public class AcompanhamentoController {
 	@Autowired
 	private AcompanhamentoService acompanhamentoService;
@@ -32,15 +32,17 @@ public class AcompanhamentoController {
 	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
 	public ResponseEntity<AcompanhamentoViewDTO> save(
 			@AuthenticationPrincipal Usuario administrador,
+			@PathVariable Long id_quiosque,
 			@RequestBody @Valid AcompanhamentoCreateDTO data){
-	    return ResponseEntity.status(HttpStatus.CREATED).body(this.acompanhamentoService.save(administrador, data));
+	    return ResponseEntity.status(HttpStatus.CREATED).body(this.acompanhamentoService.save(administrador, id_quiosque, data));
 	}
 	
 	@GetMapping
 	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
 	public ResponseEntity<List<AcompanhamentoViewDTO>> findByQuiosque(
-			@AuthenticationPrincipal Usuario administrador){
-			List<AcompanhamentoViewDTO> acompanhamento =  this.acompanhamentoService.findByQuiosque(administrador);
+			@AuthenticationPrincipal Usuario administrador,
+			@PathVariable Long id_quiosque){
+			List<AcompanhamentoViewDTO> acompanhamento =  this.acompanhamentoService.findByQuiosque(administrador, id_quiosque);
 			return ResponseEntity.ok(acompanhamento);
 	}
 	
@@ -48,18 +50,20 @@ public class AcompanhamentoController {
 	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
 	public ResponseEntity<AcompanhamentoViewDTO> update(
 			@AuthenticationPrincipal Usuario administrador,
+			@PathVariable Long id_quiosque,
 			@PathVariable Long id,
 			@RequestBody @Valid AcompanhamentoCreateDTO data){
 		
-			return ResponseEntity.ok(this.acompanhamentoService.update(administrador, id, data));
+			return ResponseEntity.ok(this.acompanhamentoService.update(administrador, id_quiosque, id, data));
 	}
 	
 	@DeleteMapping("/{id}")
 	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
 	public ResponseEntity<Void> delete(
 			@AuthenticationPrincipal Usuario administrador,
+			@PathVariable Long id_quiosque,
 			@PathVariable Long id){
-			this.acompanhamentoService.deleteById(administrador, id);
+			this.acompanhamentoService.deleteById(administrador, id_quiosque, id);
 			return ResponseEntity.noContent().build();
 	}
 }

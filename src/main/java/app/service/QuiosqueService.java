@@ -1,7 +1,14 @@
 package app.service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -9,25 +16,34 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import app.DTO.AvaliacaoDTO;
+import app.DTO.EmpresaOverviewDTO;
+import app.DTO.FuncionarioOverviewDTO;
+import app.DTO.PedidoOverviewDTO;
 import app.DTO.QuiosqueCreateDTO;
 import app.DTO.QuiosqueDTO;
 import app.DTO.QuiosqueUpdateDTO;
 import app.DTO.QuiosqueNearByResponseDTO;
+import app.DTO.QuiosqueOverviewDTO;
 import app.DTO.QuiosqueViewDTO;
-import app.DTO.UsuarioResponseDTO;
 import app.auth.AuthRepository;
-import app.config.NotificationService;
 import app.entity.AvaliacaoResumo;
 import app.entity.Categoria;
 import app.entity.Coordenada;
 import app.entity.Endereco;
+import app.entity.Funcionario;
 import app.entity.Item;
+import app.entity.ItemPedido;
+import app.entity.Pedido;
 import app.entity.Quiosque;
 import app.entity.Usuario;
 import app.enums.StatusConta;
-import app.enums.UserRole;
+import app.repository.AvaliacaoProjection;
 import app.repository.CategoriaRepository;
+import app.repository.ItemPedidoRepository;
 import app.repository.ItemRepository;
+import app.repository.PedidoRepository;
+import app.repository.QuiosqueMetricasProjection;
 import app.repository.QuiosqueRepository;
 import jakarta.transaction.Transactional;
 
@@ -35,31 +51,41 @@ import jakarta.transaction.Transactional;
 public class QuiosqueService {
 
 	@Autowired
+	private PedidoRepository pedidoRepository;
+	@Autowired
     private ItemRepository itemRepository;
 	@Autowired
 	private QuiosqueRepository quiosqueRepository;
 	@Autowired
 	private CategoriaRepository categoriaRepository;
 	@Autowired
-	private AuthRepository authRepository;
-	@Autowired
 	private ImageService imageService;
+	@Autowired
+	private AuthRepository funcionarioRepository;
+	@Autowired
+	ItemPedidoRepository itemPedidoRepository;
 	
+	@Transactional
 	public QuiosqueCreateDTO save(
-			Usuario usuario,
+			Funcionario usuario,
 			QuiosqueDTO data) {
 		
+		if(data.cnpj() != null && !data.cnpj().isBlank() && !validarCNPJ(data.cnpj()))
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "CNPJ inválido");
+		
+		if(quiosqueRepository.existsByEmailOrCnpj(data.email(), data.cnpj()))
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Dados inválidos");
 		
 		Quiosque q = new Quiosque(
 				data.nome(),
 				data.email(),
-				data.cnpj(),
 				data.openingTime(),
 				data.closingTime(),
 				data.distAtendimento(),
-				new Endereco(data.cep(),data.uf(),data.cidade()),
+				new Endereco(data.cep(),data.uf(),data.cidade(), data.referencia(), data.rua(), data.numero()),
 				new AvaliacaoResumo(0L,0L),
 				new Coordenada(data.latitude(), data.longitude()),
+				data.cnpj(),
 				usuario,
 				StatusConta.Ativa,
 				0L,
@@ -74,23 +100,71 @@ public class QuiosqueService {
 	}	
 	
 	@Transactional
-	public QuiosqueCreateDTO update(Usuario usuario, QuiosqueUpdateDTO data) {
+	public QuiosqueCreateDTO update(Usuario usuario, Long id_quiosque, QuiosqueUpdateDTO data) {
 		
-		Quiosque q = findQuiosqueForUser(usuario);
+		Quiosque q = findQuiosqueForUser(usuario, id_quiosque);
 		
-		q.atualizarDados(data);
+		if(data.cnpj() != null && !data.cnpj().isBlank() && validarCNPJ(data.cnpj())) {
+			q.atualizarDados(data);
+		}
 				
 		QuiosqueCreateDTO response = QuiosqueCreateDTO.from(q);
 		return response;
 		
 	}
 	
+	private static boolean validarCNPJ(String cnpj) {
+	    // Remove pontos, barras e hífen
+	    cnpj = cnpj.replaceAll("\\D", "");
+
+	    // CNPJ deve ter exatamente 14 dígitos
+	    if (cnpj.length() != 14) {
+	        return false;
+	    }
+
+	    // Rejeita CNPJs com todos os dígitos iguais
+	    if (cnpj.matches("(\\d)\\1{13}")) {
+	        return false;
+	    }
+
+	    // Pesos para calcular o primeiro dígito
+	    int[] pesos1 = {5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2};
+
+	    // Pesos para calcular o segundo dígito
+	    int[] pesos2 = {6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2};
+
+	    // Primeiro dígito verificador
+	    int soma = 0;
+
+	    for (int i = 0; i < 12; i++) {
+	        soma += Character.getNumericValue(cnpj.charAt(i)) * pesos1[i];
+	    }
+
+	    int resto = soma % 11;
+	    int digito1 = (resto < 2) ? 0 : 11 - resto;
+
+	    // Segundo dígito verificador
+	    soma = 0;
+
+	    for (int i = 0; i < 13; i++) {
+	        soma += Character.getNumericValue(cnpj.charAt(i)) * pesos2[i];
+	    }
+
+	    resto = soma % 11;
+	    int digito2 = (resto < 2) ? 0 : 11 - resto;
+
+	    // Compara os dígitos calculados com os informados
+	    return digito1 == Character.getNumericValue(cnpj.charAt(12))
+	            && digito2 == Character.getNumericValue(cnpj.charAt(13));
+	}
+
+	
 	
 	
 	@Transactional
-	public QuiosqueCreateDTO updateStatus(Usuario usuario) {
+	public QuiosqueCreateDTO updateStatus(Usuario usuario, Long id_quiosque) {
 		
-		Quiosque q = findQuiosqueForUser(usuario);
+		Quiosque q = findQuiosqueForUser(usuario, id_quiosque);
 		q.setStatus(
 				q.getStatus() == StatusConta.Ativa ? StatusConta.Desativada : StatusConta.Ativa
 				);
@@ -104,9 +178,10 @@ public class QuiosqueService {
 	@Transactional
 	public String uploadImagemQuiosque(
 			Usuario administrador,
+			Long id_quiosque,
 			MultipartFile file) {
 		
-		Quiosque quiosque = findQuiosqueForUser(administrador);
+		Quiosque quiosque = findQuiosqueForUser(administrador, id_quiosque);
 	
 		return imageService.uploadImagemQuiosque(quiosque, file);		
 	}
@@ -115,32 +190,42 @@ public class QuiosqueService {
 	
 	@Transactional
 	public void deleteImagemQuiosque(
-			Usuario administrador) {
+			Usuario administrador,
+			Long id_quiosque) {
 		
-		Quiosque quiosque = findQuiosqueForUser(administrador);
+		Quiosque quiosque = findQuiosqueForUser(administrador, id_quiosque);
 		
 		imageService.deleteImagemQuiosque(quiosque);
 	}
 	
-	
-	
 	@Transactional
-	public void delete(Usuario usuario) {
-		Quiosque q = findQuiosqueForUser(usuario);
+	public void deleteImagemQuiosque(
+			Usuario administrador,
+			Quiosque quiosque) {
+		
+		imageService.deleteImagemQuiosque(quiosque);
+	}
+	
+		
+	@Transactional
+	public void delete(Usuario usuario, Long id_quiosque) {
+		Quiosque q = findQuiosqueForUser(usuario, id_quiosque);
 		
 		if(q.getImagem() != null)
-			deleteImagemQuiosque(usuario);
+			deleteImagemQuiosque(usuario, q);
 		
 		// Colocar uma lógica para apagar as imagens do quisque no delete
+		
+		// Descobrir uma forma melhor de deletar os quiosques
 		
 		this.quiosqueRepository.delete(q);
 	}
 	
 	
 	
-	public QuiosqueCreateDTO get(Usuario usuario, Long id) {
-		return QuiosqueCreateDTO.from(findQuiosqueForUser(usuario, id));
-	}
+//	public QuiosqueCreateDTO get(Usuario usuario, Long id) {
+//		return QuiosqueCreateDTO.from(findQuiosqueForUser(usuario, id));
+//	}
 
 	public List<QuiosqueNearByResponseDTO> findByDistancia(
 	        double latUsuario,
@@ -179,24 +264,145 @@ public class QuiosqueService {
 	            .toList();
 	}
 	
+	public EmpresaOverviewDTO overview(Funcionario usuario, Long id_quiosque) {
+		Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);
+		
+		Long quiosqueId = quiosque.getId();
+		
+		QuiosqueOverviewDTO quiosqueOverview = getQuiosqueOverview(quiosque, quiosqueId);
+		
+		List<FuncionarioOverviewDTO> funcionarioOverview = getFuncionarioOverview(quiosqueId);
+		
+		List<PedidoOverviewDTO> pedidoOverview = getPedidoOverview(quiosqueId);		
+		
+		return new EmpresaOverviewDTO(
+				List.of(quiosqueOverview), 
+				funcionarioOverview, 
+				pedidoOverview);
+	}
+	
+	private List<PedidoOverviewDTO> getPedidoOverview(Long quiosqueId) {
+		List<Pedido> pedidos = pedidoRepository.findByQuiosqueIdOrderByDataHoraPedidoDesc(quiosqueId);
+		
+		List<UUID> pedidoIds = pedidos.stream()
+		        .map(Pedido::getId)
+		        .toList();
+		
+		List<ItemPedido> itens =
+			    itemPedidoRepository.findByPedidoIdInWithDetails(pedidoIds);
+		
+		Map<UUID, List<ItemPedido>> itensPorPedido =
+		        itens.stream()
+		                .collect(Collectors.groupingBy(
+		                        item -> item.getPedido().getId()
+		                ));
+		
+		List<PedidoOverviewDTO> overview = pedidos.stream()
+		        .map(p -> {
+
+		            List<ItemPedido> itensDoPedido =
+		                    itensPorPedido.getOrDefault(
+		                            p.getId(),
+		                            List.of()
+		                    );
+
+		            return PedidoOverviewDTO.from(
+		                    p,
+		                    p.getQuiosque(),
+		                    itensDoPedido
+		            );
+		        })
+		        .toList();
+		
+		return overview;
+	}
+	
+	private List<FuncionarioOverviewDTO> getFuncionarioOverview(Long quiosqueId) {
+		List<Funcionario> funcionarios = funcionarioRepository.findByQuiosqueId(quiosqueId);
+		List<FuncionarioOverviewDTO> overview =
+	                funcionarios.stream()
+	                        .map(f ->   FuncionarioOverviewDTO.from(f, f.getQuiosque())).toList();
+		return overview;
+	}
+	
+	
+	private QuiosqueOverviewDTO getQuiosqueOverview(Quiosque quiosque, Long quiosqueId) {
+
+//      ZoneId zone = ZoneId.of("America/Sao_Paulo");
+//      ZonedDateTime agora = ZonedDateTime.now(zone);
+
+		LocalDateTime agora = LocalDateTime.now();
+		
+      LocalDate hoje = agora.toLocalDate();
+      LocalTime horarioAtual = agora.toLocalTime();
+
+      LocalDateTime inicioHoje =
+              hoje.atStartOfDay();
+
+      LocalDateTime fimHoje =
+              agora;
+
+      LocalDateTime inicioOntem =
+              hoje.minusDays(1).atStartOfDay();
+
+      LocalDateTime fimOntem =
+              LocalDateTime.of(
+                      hoje.minusDays(1),
+                      horarioAtual
+              );
+
+      List<QuiosqueMetricasProjection> projections =
+              pedidoRepository.buscarMetricasOverview(
+            		  quiosqueId,
+                      inicioHoje,
+                      fimHoje,
+                      inicioOntem,
+                      fimOntem
+              );
+
+      Map<Long, QuiosqueMetricasProjection> metricasPorQuiosque =
+              projections.stream()
+                      .collect(Collectors.toMap(
+                              QuiosqueMetricasProjection::getQuiosqueId,
+                              Function.identity()
+                      ));
+
+      QuiosqueMetricasProjection metricas =
+              metricasPorQuiosque.get(quiosqueId);
+      
+      QuiosqueOverviewDTO overview = QuiosqueOverviewDTO.from(
+              quiosque,
+              metricas);
+             
+      
+      
+      return overview;
+  }
+	
+	
+	
+	
 	public QuiosqueViewDTO findById(
-			long id) {		
+			Long id) {		
 		Quiosque q = this.quiosqueRepository.findById(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Quiosque não encontrado")));
-		
-//		q.setNota(q.getAvaliacaoResumo().getMedia());
 		
 		return QuiosqueViewDTO.from(q);
 	}
 	
-	public QuiosqueViewDTO findByFuncionario(
-			Usuario usuario) {		
-		Quiosque q = findQuiosqueForUser(usuario);
+	public List<AvaliacaoDTO> findAvaliacoesById(Long id_quiosque) {
 		
-//		q.setNota(q.getAvaliacaoResumo().getMedia());
+		List<AvaliacaoProjection> avaliacoes = quiosqueRepository.buscarAvaliacoesDoRestaurante(id_quiosque);
 		
-		return QuiosqueViewDTO.from(q);
+		return avaliacoes.stream().map(AvaliacaoDTO::from).toList();
 	}
+	
+//	public QuiosqueViewDTO findByFuncionario(
+//			Usuario usuario) {		
+//		Quiosque q = findQuiosqueForUser(usuario);
+//		
+//		return QuiosqueViewDTO.from(q);
+//	}
 	
 	// não acho que va precisar
 	public List<Item> findItensByQuiosque(
@@ -286,17 +492,17 @@ public class QuiosqueService {
 	    return quiosque;
 	}
 	
-	private Quiosque findQuiosqueForUser(Usuario usuario) {
-		Quiosque quiosque;
-		if(usuario.getRole().equals(UserRole.PROPRIETARIO))
-			quiosque = quiosqueRepository.findByProprietario(usuario)
-	        .orElseThrow(() -> new ResponseStatusException(
-	            HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
-		else
-			quiosque = quiosqueRepository.findByFuncionariosContaining(usuario)
-			.orElseThrow(() -> new ResponseStatusException(
-		        HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
-
-	    return quiosque;
-	}
+//	private Quiosque findQuiosqueForUser(Usuario usuario) {
+//		Quiosque quiosque;
+//		if(usuario.getRole().equals(UserRole.PROPRIETARIO))
+//			quiosque = quiosqueRepository.findByProprietario(usuario)
+//	        .orElseThrow(() -> new ResponseStatusException(
+//	            HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
+//		else
+//			quiosque = quiosqueRepository.findByFuncionariosContaining(usuario)
+//			.orElseThrow(() -> new ResponseStatusException(
+//		        HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
+//
+//	    return quiosque;
+//	}
 }

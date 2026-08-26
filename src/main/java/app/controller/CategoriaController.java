@@ -24,43 +24,46 @@ import app.service.CategoriaService;
 import jakarta.validation.Valid;
 //@CrossOrigin("http://localhost")
 @RestController
-@RequestMapping("/quiosques")
+@RequestMapping("/quiosques/{id_quiosque}")
 public class CategoriaController {
 	@Autowired
 	private CategoriaService categoriaService;
 
 	
-	@PostMapping("/me/categorias")
+	@PostMapping("/categorias")
 	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
 	public ResponseEntity<CategoriaViewDTO> save(
 			@AuthenticationPrincipal Usuario administrador,
+			@PathVariable Long id_quiosque,
 			@RequestBody @Valid CategoriaCreateDTO data){
-	    return ResponseEntity.status(HttpStatus.CREATED).body(this.categoriaService.save(administrador, data));
+	    return ResponseEntity.status(HttpStatus.CREATED).body(this.categoriaService.save(administrador, id_quiosque, data));
 	}
 	
-	@GetMapping("/{id_quiosque}/categorias")
+	@GetMapping("/categorias")
 	public ResponseEntity<List<CategoriaViewDTO>> findByQuiosque(
 			@PathVariable Long id_quiosque){
 			List<CategoriaViewDTO> categorias =  this.categoriaService.findByQuiosque(id_quiosque);
 			return ResponseEntity.ok(categorias);
 	}
 	
-	@PutMapping("/me/categorias/{id}")
+	@PutMapping("/categorias/{id}")
 	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
 	public ResponseEntity<CategoriaViewDTO> update(
 			@AuthenticationPrincipal Usuario administrador,
+			@PathVariable Long id_quiosque,
 			@PathVariable Long id,
 			@RequestBody @Valid CategoriaCreateDTO data){
 		
-			return ResponseEntity.ok(this.categoriaService.update(administrador, id, data));
+			return ResponseEntity.ok(this.categoriaService.update(administrador, id_quiosque, id, data));
 	}
 	
-	@DeleteMapping("/me/categorias/{id}")
+	@DeleteMapping("/categorias/{id}")
 	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
 	public ResponseEntity<Void> delete(
 			@AuthenticationPrincipal Usuario administrador,
+			@PathVariable Long id_quiosque,
 			@PathVariable Long id){
-			this.categoriaService.deleteById(administrador, id);
+			this.categoriaService.deleteById(administrador, id_quiosque, id);
 			return ResponseEntity.noContent().build();
 	}
 }

@@ -1,10 +1,10 @@
 package app.DTO;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 
 import app.entity.Acompanhamento;
-import app.entity.Ingrediente;
 import app.entity.ItemPedido;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -23,7 +23,7 @@ public record ItemPedidoGetDTO(
 	    // Acompanhamentos com preço (nome + valor). Mantemos `acompanhamentosid`
 	    // (só os nomes) por compatibilidade com clientes existentes.
 	    List<AcompanhamentoPedidoDTO> acompanhamentos,
-	    List<String> ingredientesid
+	    List<String> ingredientes
 	) {
 
 	public static ItemPedidoGetDTO from(ItemPedido ip) {
@@ -35,7 +35,21 @@ public record ItemPedidoGetDTO(
 				ip.getValorUnit(),
 				ip.getAcompanhamentos().stream().map(Acompanhamento::getNome).toList(),
 				ip.getAcompanhamentos().stream().map(AcompanhamentoPedidoDTO::from).toList(),
-				ip.getIngredientesRemovido().stream().map(Ingrediente::getNome).toList()
+				Arrays.asList(ip.getIngredientesRemovido().split(";"))
+				);
+
+	}
+	
+	public static ItemPedidoGetDTO fromEmpresa(ItemPedido ip) {
+		return new ItemPedidoGetDTO(
+				null,
+				ip.getItem().getNome(),
+				ip.getQuantidade(),
+				null,
+				null,
+				ip.getAcompanhamentos().stream().map(Acompanhamento::getNome).toList(),
+				null,
+				Arrays.asList(ip.getIngredientesRemovido().split(";"))
 				);
 
 	}

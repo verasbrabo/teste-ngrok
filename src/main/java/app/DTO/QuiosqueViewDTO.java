@@ -8,6 +8,7 @@ import app.entity.Imagem;
 import app.entity.Quiosque;
 
 public record QuiosqueViewDTO(
+		Long id,
 		String nome,
 		BigDecimal nota,
 		Long qtdAvaliacoes,
@@ -32,6 +33,7 @@ public record QuiosqueViewDTO(
 		var endereco = q.getEndereco();
 		var coordenada = q.getCoordenada();
 		return new QuiosqueViewDTO(
+				q.getId(),
 				q.getNome(),
 				q.getAvaliacaoResumo() != null ? q.getAvaliacaoResumo().getMedia() : null,
 				q.getAvaliacaoResumo() != null

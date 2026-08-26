@@ -21,6 +21,8 @@ public record PedidoDTO(
         BigDecimal valorPagoCliente,
 		@NotNull
 	    Long quiosque,
+	    
+	    Long id_cupom,
 	    //@NotNull
 	    //LocalDateTime dataHoraPedido,
 	    @NotNull

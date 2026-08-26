@@ -41,9 +41,9 @@ public class CategoriaService {
 	}
 		
 	@Transactional
-	public CategoriaViewDTO save(Usuario usuario, CategoriaCreateDTO data) {
+	public CategoriaViewDTO save(Usuario usuario, Long id_quiosque, CategoriaCreateDTO data) {
 
-	    Quiosque quiosque = findQuiosqueForUser(usuario);
+	    Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);
 	    long ativas = quiosque.getCategorias().stream().filter(Categoria::isAtivo).count();
 	    if(ativas >= 20) {
 	    	throw new ResponseStatusException(
@@ -57,9 +57,9 @@ public class CategoriaService {
 	}
 	
 	@Transactional
-	public CategoriaViewDTO update(Usuario usuario, Long id, CategoriaCreateDTO data) {
+	public CategoriaViewDTO update(Usuario usuario, Long id_quiosque, Long id, CategoriaCreateDTO data) {
 		
-		Quiosque quiosque = findQuiosqueForUser(usuario);		
+		Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);		
 		
 		Categoria categoria = this.categoriaRepository.findByQuiosqueAndId(quiosque, id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Categoria não encontrada nesse quiosque")));
@@ -71,9 +71,9 @@ public class CategoriaService {
 	}
 	
 	@Transactional
-	public void deleteById(Usuario usuario, Long id){
+	public void deleteById(Usuario usuario, Long id_quiosque, Long id){
 		
-		Quiosque quiosque = findQuiosqueForUser(usuario);
+		Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);
 		
 		Categoria categoria = this.categoriaRepository.findByQuiosqueAndId(quiosque, id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Categoria não encontrada nesse quiosque")));
@@ -89,16 +89,16 @@ public class CategoriaService {
 		categoriaRepository.save(categoria);
 	}
 	
-	private Quiosque findQuiosqueForUser(Usuario usuario) {
-		Quiosque quiosque;
-		if(usuario.getRole().equals(UserRole.PROPRIETARIO))
-			quiosque = quiosqueRepository.findByProprietario(usuario)
+	private Quiosque findQuiosqueForUser(Usuario usuario, Long id) {
+
+	    Quiosque quiosque = quiosqueRepository.findById(id)
 	        .orElseThrow(() -> new ResponseStatusException(
 	            HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
-		else
-			quiosque = quiosqueRepository.findByFuncionariosContaining(usuario)
-			.orElseThrow(() -> new ResponseStatusException(
-		        HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
+
+	    if (!quiosque.usuarioPossuiAcesso(usuario)) {
+	        throw new ResponseStatusException(
+	            HttpStatus.FORBIDDEN, "Usuário não tem acesso a esse quiosque");
+	    }
 
 	    return quiosque;
 	}

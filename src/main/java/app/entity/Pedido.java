@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import app.enums.FormaPagamento;
 import app.enums.StatusPagamento;
@@ -31,6 +32,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import org.hibernate.validator.constraints.Length;
+
 import tools.jackson.core.io.BigDecimalParser;
 
 @SuppressWarnings("unused")
@@ -44,7 +47,10 @@ public class Pedido {
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
     //Id de conexão de para feture de aproximação
+	private BigDecimal subTotal;
+	private BigDecimal desconto;
 	private BigDecimal valorTotal;
+	
 	private LocalDateTime dataHoraPedido;
 	private LocalDateTime dataHoraEntrega;
 	// Momento em que o pedido entrou em PREPARANDO (quiosque aceitou). Base da
@@ -54,7 +60,12 @@ public class Pedido {
 	@Embedded
 	private Coordenada coordenada;
 	private String codigoEntrega;
+	
 	private Integer nota;
+	
+	@Length(max = 500)
+	private String comentario;
+	
 	private String motivoCancel;
 	// Pedido feito pelo próprio quiosque (balcão): sem cliente externo, sem
 	// coordenada de entrega e sem código de verificação. Nullable para conviver
@@ -63,6 +74,11 @@ public class Pedido {
 	// Nome avulso exibido para pedidos de balcão (ex.: "Balcão", "Mesa 3").
 	private String nomeCliente;
 
+	
+	@ManyToOne
+	@JoinColumn(nullable = true)
+	private Cupom cupom;
+	
 	@ManyToOne
 	@JoinColumn(name = "idCliente")
 	private Usuario cliente;
@@ -97,7 +113,7 @@ public class Pedido {
     // a tela do entregador funciona localmente mesmo sem persistir esse valor.
     @Column(name = "RssiMedioEntrega", nullable = true)
     private Integer rssiMedioEntrega;
-
+    
     // Forma escolhida pelo cliente antes de criar o pedido. Representa a
     // intencao de pagamento na entrega, nao pagamento online confirmado.
     @Enumerated(EnumType.STRING)
@@ -126,14 +142,25 @@ public class Pedido {
     @Column(nullable = true)
     private Boolean precisaMaquininha;
 
-	public void calcularValorTot() {
+
+	public void calcularValorSubTotal() {
 		if (itemPedidos == null || itemPedidos.isEmpty()) {
-	        this.valorTotal = BigDecimal.ZERO;
+	        this.subTotal = BigDecimal.ZERO;
 	        return;
 	    }
-		this.setValorTotal(itemPedidos.stream()
+		this.setSubTotal(itemPedidos.stream()
 		        .map(ItemPedido::getSubTotal)
 		        .reduce(BigDecimal.ZERO, BigDecimal::add));
+	}
+	
+	public void calcularValorTotal() {
+		if(this.subTotal != null && this.cupom != null) {
+			this.setDesconto(this.cupom.calcularDesconto(subTotal));
+			this.setValorTotal(this.subTotal.subtract(desconto));
+			return;
+		}
+		
+		this.setValorTotal(subTotal);
 	}
 
 	public Pedido(LocalDateTime dataHoraPedido, Coordenada coordenada,
@@ -189,6 +216,28 @@ public class Pedido {
 		 }
 	 }
 	 
+	public void avaliar(int nota, String comentario) {
+			 
+			 if(nota >= 1 && nota <= 5 && this.getStatus().equals(StatusPedido.FINALIZADO)
+					 && !possuiLink(comentario) 
+					 ) {
+				 this.comentario = comentario;
+				 this.nota = nota;
+				 this.status = StatusPedido.AVALIADO;
+			 }
+		 }
+	 
+	public static boolean possuiLink(String texto) {
+	    if (texto == null || texto.isBlank()) {
+	        return false;
+	    }
+
+	    String regex = "(https?://|www\\.)\\S+|\\b[\\w.-]+\\.(com|com\\.br|org|net|io|br)\\b";
+
+	    return Pattern.compile(regex, Pattern.CASE_INSENSITIVE)
+	                  .matcher(texto)
+	                  .find();
+	}
 
 
 	 public UUID getId() {
@@ -199,7 +248,7 @@ public class Pedido {
 
      public UUID getIdAparelhoEntregador(){return aparelhoEntregadorId;}
 
-    public void setIdAparelho(){this.aparelhoId = aparelhoId;}
+    public void setIdAparelho(UUID aparelhoId){this.aparelhoId = aparelhoId;}
 
     public void setIdAparelhoEntregador(UUID aparelhoEntregadorId) {
         this.aparelhoEntregadorId = aparelhoEntregadorId;
@@ -213,57 +262,17 @@ public class Pedido {
         this.rssiMedioEntrega = rssiMedioEntrega;
     }
 
-    public FormaPagamento getFormaPagamento() {
-        return formaPagamento;
-    }
-
-    public void setFormaPagamento(FormaPagamento formaPagamento) {
-        this.formaPagamento = formaPagamento;
-    }
-
-    public StatusPagamento getStatusPagamento() {
-        return statusPagamento;
-    }
-
-    public void setStatusPagamento(StatusPagamento statusPagamento) {
-        this.statusPagamento = statusPagamento;
-    }
-
-    public BigDecimal getValorPagoCliente() {
-        return valorPagoCliente;
-    }
-
-    public void setValorPagoCliente(BigDecimal valorPagoCliente) {
-        this.valorPagoCliente = valorPagoCliente;
-    }
-
-    public BigDecimal getValorTroco() {
-        return valorTroco;
-    }
-
-    public void setValorTroco(BigDecimal valorTroco) {
-        this.valorTroco = valorTroco;
-    }
-
-    public boolean isPrecisaMaquininha() {
-        return precisaMaquininha != null && precisaMaquininha;
-    }
-
-    public void setPrecisaMaquininha(boolean precisaMaquininha) {
-        this.precisaMaquininha = precisaMaquininha;
-    }
-
 
     public void setId(UUID id) {
 		 this.id = id;
 	 }
 
-	 public BigDecimal getValorTotal() {
-		 return valorTotal;
+	 public BigDecimal getSubTotal() {
+		 return subTotal;
 	 }
 
-	 public void setValorTotal(BigDecimal valorTotal) {
-		 this.valorTotal = valorTotal;
+	 public void setSubTotal(BigDecimal subTotal) {
+		 this.subTotal = subTotal;
 	 }
 
 	 public LocalDateTime getDataHoraPedido() {
@@ -387,11 +396,14 @@ public class Pedido {
 		 this.status = status;
 	 }
 
-	 public Pedido(UUID id, BigDecimal valorTotal, LocalDateTime dataHoraPedido, LocalDateTime dataHoraEntrega,
-			Long tempoEstimado, Coordenada coordenada, String codigoEntrega, Integer nota, String motivoCancel,
-			Usuario cliente, Quiosque quiosque, List<ItemPedido> itemPedidos, Usuario entregador, StatusPedido status) {
+	 public Pedido(UUID id, BigDecimal subTotal, BigDecimal desconto, BigDecimal valorTotal, LocalDateTime dataHoraPedido,
+			LocalDateTime dataHoraEntrega, Long tempoEstimado, Coordenada coordenada, String codigoEntrega, Integer nota,
+			String motivoCancel, Usuario cliente, Quiosque quiosque, List<ItemPedido> itemPedidos, Usuario entregador,
+			StatusPedido status) {
 		super();
 		this.id = id;
+		this.subTotal = subTotal;
+		this.desconto = desconto;
 		this.valorTotal = valorTotal;
 		this.dataHoraPedido = dataHoraPedido;
 		this.dataHoraEntrega = dataHoraEntrega;
@@ -410,5 +422,102 @@ public class Pedido {
 	 public Pedido() {
 		super();
 	 }
+
+	 public BigDecimal getDesconto() {
+		 return desconto;
+	 }
+
+	 public void setDesconto(BigDecimal desconto) {
+		 this.desconto = desconto;
+	 }
+
+	 public BigDecimal getValorTotal() {
+		 return valorTotal;
+	 }
+
+	 public void setValorTotal(BigDecimal valorTotal) {
+		 this.valorTotal = valorTotal;
+	 }
+
+	 public Cupom getCupom() {
+		 return cupom;
+	 }
+
+	 public void setCupom(Cupom cupom) {
+		 this.cupom = cupom;
+	 }
+
+	 public String getComentario() {
+		 return comentario;
+	 }
+
+	 public void setComentario(String comentario) {
+		 this.comentario = comentario;
+	 }
+
+	 public Boolean getInterno() {
+		 return interno;
+	 }
+
+	 public void setInterno(Boolean interno) {
+		 this.interno = interno;
+	 }
+
+	 public UUID getAparelhoId() {
+		 return aparelhoId;
+	 }
+
+	 public void setAparelhoId(UUID aparelhoId) {
+		 this.aparelhoId = aparelhoId;
+	 }
+
+	 public UUID getAparelhoEntregadorId() {
+		 return aparelhoEntregadorId;
+	 }
+
+	 public void setAparelhoEntregadorId(UUID aparelhoEntregadorId) {
+		 this.aparelhoEntregadorId = aparelhoEntregadorId;
+	 }
+
+	 public FormaPagamento getFormaPagamento() {
+		 return formaPagamento;
+	 }
+
+	 public void setFormaPagamento(FormaPagamento formaPagamento) {
+		 this.formaPagamento = formaPagamento;
+	 }
+
+	 public StatusPagamento getStatusPagamento() {
+		 return statusPagamento;
+	 }
+
+	 public void setStatusPagamento(StatusPagamento statusPagamento) {
+		 this.statusPagamento = statusPagamento;
+	 }
+
+	 public BigDecimal getValorPagoCliente() {
+		 return valorPagoCliente;
+	 }
+
+	 public void setValorPagoCliente(BigDecimal valorPagoCliente) {
+		 this.valorPagoCliente = valorPagoCliente;
+	 }
+
+	 public BigDecimal getValorTroco() {
+		 return valorTroco;
+	 }
+
+	 public void setValorTroco(BigDecimal valorTroco) {
+		 this.valorTroco = valorTroco;
+	 }
+
+	 public Boolean isPrecisaMaquininha() {
+		 return precisaMaquininha;
+	 }
+
+	 public void setPrecisaMaquininha(Boolean precisaMaquininha) {
+		 this.precisaMaquininha = precisaMaquininha;
+	 }
 	
+	 
 }

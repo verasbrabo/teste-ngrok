@@ -39,8 +39,10 @@ import app.auth.AuthRepository;
 import app.config.NotificationRequestDTO;
 import app.config.NotificationService;
 import app.entity.Acompanhamento;
+import app.entity.Cliente;
 import app.entity.Coordenada;
-import app.entity.Ingrediente;
+import app.entity.Cupom;
+import app.entity.CupomCliente;
 import app.entity.Item;
 import app.entity.ItemPedido;
 import app.entity.Pedido;
@@ -51,7 +53,7 @@ import app.enums.StatusPagamento;
 import app.enums.StatusPedido;
 import app.enums.UserRole;
 import app.repository.AcompanhamentoRepository;
-import app.repository.IngredienteRepository;
+import app.repository.CupomRepository;
 import app.repository.ItemRepository;
 import app.repository.PedidoRepository;
 import app.repository.QuiosqueRepository;
@@ -73,7 +75,10 @@ public class PedidoService {
 	AcompanhamentoRepository acompanhamentoRepository;
 	
 	@Autowired
-	IngredienteRepository ingredienteRepository;
+	CupomRepository cupomRepository;
+	
+	@Autowired
+	CupomClienteRepository cupomClienteRepository;
 	
 	@Autowired
 	AuthRepository userRepository;
@@ -83,17 +88,23 @@ public class PedidoService {
 	
 	public PedidoCreateResponseDTO rejeitarPedido(
 			Usuario funcionario,
-			//Long id_quiosque,
+			Long id_quiosque,
 			UUID id) {
 		
-		Quiosque quiosque = findQuiosqueForUser(funcionario);
+		Quiosque quiosque = findQuiosqueForUser(funcionario, id_quiosque);
 		
 		Pedido pedido = pedidoRepository.findByIdAndQuiosque(id, quiosque)
 	            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Pedido não encontrado")));
 		
 		pedido.setStatus(StatusPedido.REJEITADO);	
 		
-		Usuario cliente = pedido.getCliente();
+		Cliente cliente = (Cliente) pedido.getCliente();
+		
+//		Cliente cliente;
+//		if(pedido.getCliente() instanceof Cliente) 
+//			cliente = (Cliente) pedido.getCliente();
+//		else
+//			return PedidoCreateResponseDTO.from(this.pedidoRepository.save(pedido));
 		
 		boolean possuiPedidoAtivo =
                 pedidoRepository.existsByClienteIdAndStatusNotIn(
@@ -113,18 +124,17 @@ public class PedidoService {
 	}
 	
 	@Transactional
-	public PedidoGetDTO quiosqueCancelarPedido(Usuario usuario, UUID id, MotivoCancelamentoDTO data) {
-		Quiosque quiosque = findQuiosqueForUser(usuario);
+	public PedidoGetDTO quiosqueCancelarPedido(Usuario usuario, Long id_quiosque, UUID id, MotivoCancelamentoDTO data) {
+		Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);
 		
 		
 		Pedido pedido = pedidoRepository.findByIdAndQuiosque(id, quiosque)
-				 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Pedido não encontrado")));
+				 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Pedido não encontrado")));		
 		
-		Usuario cliente = pedido.getCliente();
-		
-		if(!cliente.getRole().equals(UserRole.CLIENTE)) {
+		if(!pedido.getCliente().getRole().equals(UserRole.CLIENTE)) {
 			pedido.cancelar();
 		} 
+		
 		
 		if(!data.motivo().isBlank()) {
 			pedido.setMotivoCancel(data.motivo());
@@ -138,7 +148,7 @@ public class PedidoService {
 				);
 		}
 		
-		 
+		Cliente cliente = (Cliente) pedido.getCliente();
 		
 	    boolean possuiPedidoAtivo =
                 pedidoRepository.existsByClienteIdAndStatusNotIn(
@@ -170,7 +180,7 @@ public class PedidoService {
 	}
 	
 	@Transactional
-	private String adicionarCodigo(Usuario cliente, Pedido pedido) {	 
+	private String adicionarCodigo(Cliente cliente, Pedido pedido) {	 
 		 boolean possuiPedidoAtivo =
 	                pedidoRepository.existsByClienteIdAndStatusNotIn(
 	                        cliente.getId(),
@@ -190,7 +200,7 @@ public class PedidoService {
 	
 	@Transactional
 	public PedidoGetDTO createMeuPedido(
-			Usuario cliente, 
+			Cliente cliente, 
 			PedidoDTO data) {
 		
 		
@@ -209,6 +219,9 @@ public class PedidoService {
 		            "Fora do alcance ou horario de atendimento do quiosque");
 		}
 		
+		
+		
+		
 		Pedido pedido = new Pedido(
 				LocalDateTime.now(),
 		        entrega,
@@ -219,9 +232,38 @@ public class PedidoService {
                 data.idAparelho()
 		);
 		adicionarItens(pedido, data.itens(), quiosque);
-
+		
+		
+		
 		pedido.setCodigoEntrega(data.codigoEntrega());
-		pedido.calcularValorTot();
+		pedido.calcularValorSubTotal();
+		
+		
+		
+		if(data.id_cupom() != null) {
+			Cupom cupom = this.cupomRepository.findByIdAndQuiosqueId(data.id_cupom(), data.quiosque())
+					.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cupom não encontrado"));
+			Boolean jaUtilizou = cupomClienteRepository.existsByCupomIdAndClienteId(data.id_cupom(), cliente.getId());
+			if(cupom.podeSerAplicado(pedido.getSubTotal()) && !jaUtilizou) {
+				pedido.setCupom(cupom);
+			
+				CupomCliente cc = new CupomCliente(cupom, cliente);
+
+				cc.setCliente(cliente);
+				cc.setCupom(cupom);
+				
+				cupomClienteRepository.save(cc);
+				
+			} else {
+				 throw new ResponseStatusException(
+						 HttpStatus.CONFLICT, 
+						 "Cupom não pode ser aplicado");
+			}
+			
+		}
+			
+		pedido.calcularValorTotal();
+		
 		// O pagamento depende do valor total real do pedido, entao so pode ser
 		// validado depois que os itens e adicionais foram processados.
 		configurarPagamento(pedido, data);
@@ -236,7 +278,7 @@ public class PedidoService {
 				"Pedido de " + cliente.getNome());
 		return PedidoGetDTO.from(salvo);
 	}
-
+	
 	private void configurarPagamento(Pedido pedido, PedidoDTO data) {
 		FormaPagamento formaPagamento = data.formaPagamento();
 		// O cliente nao pode criar pedido sem orientar como pretende pagar na
@@ -286,6 +328,7 @@ public class PedidoService {
 						.setScale(2, RoundingMode.HALF_UP));
 	}
 
+
 	/**
 	 * Envia uma notificação push para todos os aparelhos do quiosque
 	 * (proprietário + funcionários com deviceToken registrado). Usada para o
@@ -293,7 +336,7 @@ public class PedidoService {
 	 */
 	private void notificarQuiosque(Quiosque quiosque, Pedido pedido, String titulo, String corpo) {
 		Set<String> tokens = new HashSet<>();
-		if (quiosque.getProprietario() != null
+		if (    quiosque.getProprietario() != null
 				&& quiosque.getProprietario().getDeviceToken() != null)
 			tokens.add(quiosque.getProprietario().getDeviceToken());
 		if (quiosque.getFuncionarios() != null)
@@ -314,9 +357,9 @@ public class PedidoService {
 	 * foi o próprio quiosque que o registrou (não precisa ser aceito).
 	 */
 	@Transactional
-	public PedidoGetDTO createPedidoInterno(Usuario funcionario, PedidoInternoDTO data) {
+	public PedidoGetDTO createPedidoInterno(Usuario funcionario, Long id_quiosque, PedidoInternoDTO data) {
 
-		Quiosque quiosque = findQuiosqueForUser(funcionario);
+		Quiosque quiosque = findQuiosqueForUser(funcionario, id_quiosque);
 
 		Pedido pedido = new Pedido(
 				LocalDateTime.now(),
@@ -338,7 +381,8 @@ public class PedidoService {
 
 		adicionarItens(pedido, data.itens(), quiosque);
 
-		pedido.calcularValorTot();
+		pedido.calcularValorSubTotal();
+		pedido.calcularValorTotal();
 		pedido.setTempoEstimado(quiosque.calcularTempoEstimado());
 
 		return PedidoGetDTO.from(pedidoRepository.save(pedido));
@@ -382,11 +426,12 @@ public class PedidoService {
 
 		    }
 
-		    if(itemDTO.ingredientesid() != null && !itemDTO.ingredientesid().isEmpty()) {
-		    	List<Ingrediente> ingredientes= this.ingredienteRepository.findAllById(itemDTO.ingredientesid());
-
-		    	itemPedido.removerIngredientes(ingredientes);
-		    }
+//		    if(itemDTO.ingredientesid() != null && !itemDTO.ingredientesid().isEmpty()) {
+//		    	List<Ingrediente> ingredientes= this.ingredienteRepository.findAllById(itemDTO.ingredientesid());
+//
+//		    	itemPedido.removerIngredientes(ingredientes);
+//		    }
+		    itemPedido.setIngredientesRemovido(String.join(";", itemDTO.ingredientes()) );
 
 		    itemPedido.calcularSubtotal();
 
@@ -413,8 +458,10 @@ public class PedidoService {
                 		usuario.getId(),
                 		StatusPedido.STATUS_FINALIZADOS
                 );
+	     Cliente cliente = (Cliente) usuario;
 		 if(!possuiPedidoAtivo) {
-			 usuario.setCodigoEntrega(null);;
+			 
+			 cliente.setCodigoEntrega(null);;
 		 }
 		userRepository.save(usuario);
 		pedido = this.pedidoRepository.save(pedido);
@@ -456,11 +503,12 @@ public class PedidoService {
 	
 	public List<Pedido> getPedidos(
 			Usuario administrador,
+			Long id_quiosque,
 			StatusPedido status
 //			,Pageable pageable
 			) {
 		
-		Quiosque quiosque = findQuiosqueForUser(administrador);		
+		Quiosque quiosque = findQuiosqueForUser(administrador, id_quiosque);		
 		
 		return status == null
 				? this.pedidoRepository.findByQuiosqueOrderByDataHoraPedido(quiosque)
@@ -468,18 +516,20 @@ public class PedidoService {
 	}
 	
 	public List<Pedido> getPedidosAtivos(
-			Usuario administrador
+			Usuario administrador,
+			Long id_quiosque
 //			,Pageable pageable
 			) {
 		
-		Quiosque quiosque = findQuiosqueForUser(administrador);				
+		Quiosque quiosque = findQuiosqueForUser(administrador, id_quiosque);				
 		return this.pedidoRepository.findByQuiosqueAndStatusInOrderByDataHoraPedido(quiosque, List.of(StatusPedido.CRIADO, StatusPedido.ACEITO, StatusPedido.PREPARANDO, StatusPedido.EM_ENTREGA));
 
 	}
 	
 	public Pedido getPedidoEntregador(
-			Usuario entregador) {
-		Quiosque quiosque = findQuiosqueForUser(entregador);	
+			Usuario entregador,
+			Long id_quiosque) {
+		Quiosque quiosque = findQuiosqueForUser(entregador, id_quiosque);	
 		
 		return this.pedidoRepository.findByQuiosqueIdAndEntregadorIdAndStatusNotIn(quiosque.getId(), entregador.getId(), StatusPedido.STATUS_FINALIZADOS)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Pedido não encontrado")));
@@ -490,10 +540,11 @@ public class PedidoService {
 	@Transactional
 	public PedidoGetDTO updatePedido(
 			UUID id, 
+			Long id_quiosque,
 			Usuario administrador, 
 			AtualizarStatusDTO data) {	
 		
-		Quiosque quiosque = findQuiosqueForUser(administrador);
+		Quiosque quiosque = findQuiosqueForUser(administrador, id_quiosque);
 		
 		Pedido pedido = pedidoRepository.findByIdAndQuiosque(id, quiosque)
 	            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Pedido não encontrado")));
@@ -538,10 +589,11 @@ public class PedidoService {
 	@Transactional
 	public PedidoGetDTO atualizarProximidadeEntrega(
 			UUID id,
+			Long id_quiosque,
 			Usuario funcionario,
 			AtualizarProximidadeDTO data) {
 
-		Quiosque quiosque = findQuiosqueForUser(funcionario);
+		Quiosque quiosque = findQuiosqueForUser(funcionario, id_quiosque);
 		Pedido pedido = pedidoRepository.findByIdAndQuiosque(id, quiosque)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido nÃ£o encontrado"));
 
@@ -555,8 +607,8 @@ public class PedidoService {
 	}
 	
 	@Transactional
-	public PedidoGetDTO entregadorPedido(Usuario entregador, UUID id) {
-		Quiosque quiosque = findQuiosqueForUser(entregador);	
+	public PedidoGetDTO entregadorPedido(Usuario entregador, Long id_quiosque, UUID id) {
+		Quiosque quiosque = findQuiosqueForUser(entregador, id_quiosque);	
 		
 		boolean possuiEntregasAtivas = this.pedidoRepository.existsByEntregadorIdAndStatusNotIn(entregador.getId(), StatusPedido.STATUS_FINALIZADOS);
 		
@@ -602,10 +654,10 @@ public class PedidoService {
 	}
 	
 	@Transactional
-	public boolean validarCodigo(Usuario funcionario, UUID id, ValidarCodigoDTO data) {
+	public boolean validarCodigo(Usuario funcionario, Long id_quiosque, UUID id, ValidarCodigoDTO data) {
 	    // Quem finaliza é o próprio quiosque (não um entregador designado): busca
 	    // o pedido pelo quiosque do funcionário autenticado.
-	    Quiosque quiosque = findQuiosqueForUser(funcionario);
+	    Quiosque quiosque = findQuiosqueForUser(funcionario, id_quiosque);
 	    Pedido pedido = pedidoRepository
 	        .findByIdAndQuiosque(id, quiosque)
 	        .orElseThrow(() -> new ResponseStatusException(
@@ -637,7 +689,7 @@ public class PedidoService {
 
 	    notificationService.sendNotificationToDevice(NotificationRequestDTO.from(pedido));
 
-	    Usuario cliente = pedido.getCliente();
+	    Cliente cliente = (Cliente) pedido.getCliente();
 	    
 	    boolean possuiPedidoAtivo =
                 pedidoRepository.existsByClienteIdAndStatusNotIn(
@@ -660,13 +712,22 @@ public class PedidoService {
 		if(!usuario.getRole().equals(UserRole.CLIENTE)) 
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Apenas usuarios não relacionados ao quiosque podem avaliar o pedido");
 		
-		
-		pedido.avaliar(data.nota());
+		if (data.comentario() != null && !data.comentario().isBlank()) {
+		    pedido.avaliar(data.nota(), data.comentario());
+		} else {
+		    pedido.avaliar(data.nota());
+		}
 		
 		if(pedido.getNota() == null) {	
 			throw new ResponseStatusException(
 				    HttpStatus.BAD_REQUEST,
 				    "Valor invalido"
+				);
+		}
+		if(!data.comentario().equals(pedido.getComentario())) {	
+			throw new ResponseStatusException(
+				    HttpStatus.BAD_REQUEST,
+				    "Comentario invalido"
 				);
 		}
 		
@@ -680,16 +741,16 @@ public class PedidoService {
 		return pedido.getStatus().getDescricao();		
 	}
 	
-	private Quiosque findQuiosqueForUser(Usuario usuario) {
-		Quiosque quiosque;
-		if(usuario.getRole().equals(UserRole.PROPRIETARIO))
-			quiosque = quiosqueRepository.findByProprietario(usuario)
+	private Quiosque findQuiosqueForUser(Usuario usuario, Long id) {
+
+	    Quiosque quiosque = quiosqueRepository.findById(id)
 	        .orElseThrow(() -> new ResponseStatusException(
 	            HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
-		else
-			quiosque = quiosqueRepository.findByFuncionariosContaining(usuario)
-			.orElseThrow(() -> new ResponseStatusException(
-		        HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
+
+	    if (!quiosque.usuarioPossuiAcesso(usuario)) {
+	        throw new ResponseStatusException(
+	            HttpStatus.FORBIDDEN, "Usuário não tem acesso a esse quiosque");
+	    }
 
 	    return quiosque;
 	}

@@ -11,20 +11,23 @@ public record QuiosqueDTO(
 		String nome,
 		 @NotNull
 		String email,
-		 @NotNull
-		String cnpj,
-		@NotNull
+		
 	    LocalTime openingTime,
-	    @NotNull
+	    
 	    LocalTime closingTime,
-	    @NotNull
+	    
+	    String cnpj,
+	    
 	    Long distAtendimento,
 	    @NotNull
 		String cep,
 		 @NotNull
 		String uf,
 		 @NotNull
-		String cidade,
+		String cidade,	
+		String referencia,
+		String rua,
+		String numero,
 		 @NotNull
 		Double latitude,
 		 @NotNull

@@ -1,6 +1,7 @@
 package app.auth;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -31,8 +32,9 @@ import app.auth.DTO.AuthenticationDTO;
 import app.auth.DTO.LoginResponseDTO;
 import app.auth.DTO.RegisterDTO;
 import app.config.TokenService;
-import app.controller.AcompanhamentoController;
+import app.entity.Funcionario;
 import app.entity.Usuario;
+import app.enums.UserRole;
 import jakarta.validation.Valid;
 
 @RestController
@@ -48,24 +50,53 @@ public class AuthController {
 	@Autowired
 	private AuthRepository usuarioRepository;	
 
-	@PostMapping("/auth/login")
-	public ResponseEntity<LoginResponseDTO> login(@RequestBody @Valid AuthenticationDTO data) {
-		var userNamePassword = new UsernamePasswordAuthenticationToken(data.email(), data.password());
-		var auth = this.authenticationManager.authenticate(userNamePassword);
-		
-		var token = tokenService.generateToken((Usuario) auth.getPrincipal());
-		
-		Usuario usuario = (Usuario) auth.getPrincipal();
-		
-		usuario.setUltimoLogin(LocalDateTime.now());
-		// Colocar a requisição de trocar senha
-		/*
-		 * if ultimologin is null
-		 * criar uma role pra isso????
-		 * criar uma role que retorna trocarSenha no getAuthorities do Usuario e filtar no SecurityFilter
-		 */
-		usuarioRepository.save(usuario);
-		return ResponseEntity.ok(new LoginResponseDTO(token));
+	@PostMapping("/auth/login/cliente")
+	public ResponseEntity<LoginResponseDTO> loginCliente(
+	        @RequestBody @Valid AuthenticationDTO data) {
+
+	    return autenticar(
+	        data,
+	        Set.of(UserRole.CLIENTE)
+	    );
+	}
+
+	@PostMapping("/auth/login/quiosque")
+	public ResponseEntity<LoginResponseDTO> loginQuiosque(
+	        @RequestBody @Valid AuthenticationDTO data) {
+
+	    return autenticar(
+	        data,
+	        Set.of(
+        		UserRole.FUNCIONARIO,
+        		UserRole.GERENTE,
+        		UserRole.PROPRIETARIO
+	        )
+	    );
+	}
+	
+	private ResponseEntity<LoginResponseDTO> autenticar(
+	        AuthenticationDTO data,
+	        Set<UserRole> rolesPermitidas) {
+
+	    var authentication = authenticationManager.authenticate(
+	        new UsernamePasswordAuthenticationToken(
+	            data.email(),
+	            data.password()
+	        )
+	    );
+
+	    Usuario usuario = (Usuario) authentication.getPrincipal();
+
+	    if (!rolesPermitidas.contains(usuario.getRole())) {
+	        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+	    }
+
+	    usuario.setUltimoLogin(LocalDateTime.now());
+	    usuarioRepository.save(usuario);
+
+	    var token = tokenService.generateToken(usuario);
+
+	    return ResponseEntity.ok(new LoginResponseDTO(token));
 	}
 	
 	// Sem @PreAuthorize: o cadastro é feito por usuários anônimos (novo
@@ -102,7 +133,7 @@ public class AuthController {
 	
 	@DeleteMapping("/me")
 	@PreAuthorize("hasAnyRole('FUNCIONARIO','CLIENTE')")
-	public ResponseEntity<Void> deleteMe(@AuthenticationPrincipal Usuario user){
+	public ResponseEntity<Void> deleteMe(@AuthenticationPrincipal Funcionario user){
 		authService.deleteMe(user);
 		return ResponseEntity.noContent().build();
 	}

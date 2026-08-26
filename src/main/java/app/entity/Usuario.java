@@ -25,6 +25,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Inheritance;
+import jakarta.persistence.InheritanceType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
@@ -42,7 +44,8 @@ import lombok.Setter;
 //@AllArgsConstructor
 //@NoArgsConstructor
 @Entity
-public class Usuario implements UserDetails {
+@Inheritance(strategy = InheritanceType.JOINED)
+public abstract class Usuario implements UserDetails {
 
 	private static final long serialVersionUID = 1L;
 	@Id
@@ -65,13 +68,12 @@ public class Usuario implements UserDetails {
 	@Column(nullable = false, unique = true)
 	private String telefone;
 	@Column(nullable = false, unique = true, updatable = false)
-	@Email
-	private String email;
+	private String login;
 	
 	@Enumerated(EnumType.STRING)
 	private UserRole role;	
 	
-	private String codigoEntrega;
+	
 	private LocalDate dataCadastro;
 	private LocalDateTime ultimoLogin;
 	
@@ -82,9 +84,7 @@ public class Usuario implements UserDetails {
 	@Enumerated(EnumType.STRING)
 	private StatusConta status;
 	
-	@ManyToOne(optional = true)
-	@JoinColumn(name = "quiosque_id", nullable = true)
-	private Quiosque quiosque;
+	
 	
 	@PrePersist
 	protected void onCreate() {
@@ -109,13 +109,13 @@ public class Usuario implements UserDetails {
 
 	@Override
 	public String getUsername() {
-		return email;
+		return login;
 	}
 
 	public Usuario(String nome, String email, String senhaHash, String cpf, String telefone, UserRole role) {
 		super();
 		this.nome = nome;
-		this.email = email;
+		this.login = email;
 		this.senhaHash = senhaHash;
 		this.cpf = cpf;
 		this.telefone = telefone;
@@ -123,22 +123,20 @@ public class Usuario implements UserDetails {
 	}
 
 	public Usuario(Long id, String nome, String senhaHash, String cpf, String telefone, @Email String email,
-			UserRole role, String codigoEntrega, LocalDate dataCadastro, LocalDateTime ultimoLogin,
-			Imagem imagem, StatusConta status, Quiosque quiosque) {
+				UserRole role, LocalDate dataCadastro, LocalDateTime ultimoLogin,
+				Imagem imagem, StatusConta status) {
 		super();
 		this.id = id;
 		this.nome = nome;
 		this.senhaHash = senhaHash;
 		this.cpf = cpf;
 		this.telefone = telefone;
-		this.email = email;
+		this.login = email;
 		this.role = role;
-		this.codigoEntrega = codigoEntrega;
 		this.dataCadastro = dataCadastro;
 		this.ultimoLogin = ultimoLogin;
 		this.imagem = imagem;
 		this.status = status;
-		this.quiosque = quiosque;
 	}
 	
 	public void atualizarDados(RegisterDTO user) {
@@ -162,7 +160,7 @@ public class Usuario implements UserDetails {
 		}
 
 		if (data.email() != null && !data.email().isBlank()) {
-			this.setEmail(data.email());
+			this.setLogin(data.email());
 		}
 
 		if (data.telefone() != null && !data.telefone().isBlank()) {
@@ -218,12 +216,12 @@ public class Usuario implements UserDetails {
 		this.telefone = telefone;
 	}
 
-	public String getEmail() {
-		return email;
+	public String getLogin() {
+		return login;
 	}
 
-	public void setEmail(String email) {
-		this.email = email;
+	public void setLogin(String login) {
+		this.login = login;
 	}
 
 	public UserRole getRole() {
@@ -232,14 +230,6 @@ public class Usuario implements UserDetails {
 
 	public void setRole(UserRole role) {
 		this.role = role;
-	}
-
-	public String getCodigoEntrega() {
-		return codigoEntrega;
-	}
-
-	public void setCodigoEntrega(String codigoEntrega) {
-		this.codigoEntrega = codigoEntrega;
 	}
 
 	public LocalDate getDataCadastro() {
@@ -273,14 +263,6 @@ public class Usuario implements UserDetails {
 
 	public void setStatus(StatusConta status) {
 		this.status = status;
-	}
-
-	public Quiosque getQuiosque() {
-		return quiosque;
-	}
-
-	public void setQuiosque(Quiosque quiosque) {
-		this.quiosque = quiosque;
 	}
 
 	public static long getSerialversionuid() {

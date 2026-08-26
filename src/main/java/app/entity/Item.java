@@ -38,17 +38,16 @@ public class Item {
 	// `ordem` é opcional (o app não a envia); `Long` evita o NPE de unboxing
 	// que derrubava a criação de itens. Nulos não violam a unique (ordem,
 	// id_categoria) no MySQL.
-	public Item(String nome, String tipo, String descricao, BigDecimal valorBase,BigDecimal valorPromo, Categoria categoria, Long ordem) {
+	public Item(String nome, String descricao, BigDecimal valorBase,BigDecimal valorPromo, Categoria categoria, Long ordem) {
 		super();
 		this.nome = nome;
-		this.tipo = tipo;
 		this.descricao = descricao;
 		this.valorBase = valorBase;
 		this.valorPromo = valorPromo;
 		this.categoria = categoria;
 		this.ordem = ordem;
 	}
-	private String nome, tipo, descricao;
+	private String nome, descricao;
 	private BigDecimal valorBase, valorPromo;
 	private Long ordem;
 
@@ -56,8 +55,10 @@ public class Item {
 	// continua referenciado pelo histórico de pedidos em item_pedido).
 	private boolean ativo = true;
 
-	@OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
-	private List<ItemIngrediente> ingredientes = new ArrayList<>();
+//	@OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
+//	private List<ItemIngrediente> ingredientes = new ArrayList<>();
+	
+	private String ingredientes;
 	
 	@OneToOne
 	@JoinColumn(name = "imagem_id")
@@ -80,7 +81,6 @@ public class Item {
 	public static Item from(ItemCreateRequest data, Categoria c) {
 		return new Item(
 		        data.nome(),
-		        data.tipo(),
 		        data.descricao(),
 		        data.valorBase(),
 		        data.valorPromo(),
@@ -96,16 +96,16 @@ public class Item {
 	    return valorBase;
 	}
 	
-	public void addIngrediente(Ingrediente ingrediente) {
-		ingredientes.add(new ItemIngrediente(this, ingrediente));
-	}
+//	public void addIngrediente(Ingrediente ingrediente) {
+//		ingredientes.add(new ItemIngrediente(this, ingrediente));
+//	}
 	
 	public void atualizar(ItemCreateRequest data) {
 		this.setNome(data.nome());
-		this.setTipo(data.tipo());
 		this.setDescricao(data.descricao());
 		this.setValorBase(data.valorBase());
 		this.setValorPromo(data.valorPromo());
+		this.setIngredientes(String.join(";", data.ingredientes()));
 		// Mantém a ordem atual quando o corpo não a informa.
 		if (data.ordem() != null) this.setOrdem(data.ordem());
 	}
@@ -131,14 +131,6 @@ public class Item {
 
 	public void setNome(String nome) {
 		this.nome = nome;
-	}
-
-	public String getTipo() {
-		return tipo;
-	}
-
-	public void setTipo(String tipo) {
-		this.tipo = tipo;
 	}
 
 	public String getDescricao() {
@@ -181,11 +173,11 @@ public class Item {
 		this.ativo = ativo;
 	}
 
-	public List<ItemIngrediente> getIngredientes() {
+	public String getIngredientes() {
 		return ingredientes;
 	}
 
-	public void setIngredientes(List<ItemIngrediente> ingredientes) {
+	public void setIngredientes(String ingredientes) {
 		this.ingredientes = ingredientes;
 	}
 
@@ -221,13 +213,12 @@ public class Item {
 		this.acompanhamentos = acompanhamentos;
 	}
 
-	public Item(Long id, String nome, String tipo, String descricao, BigDecimal valorBase, BigDecimal valorPromo,
-			Long ordem, List<ItemIngrediente> ingredientes, Imagem imagem, Categoria categoria,
+	public Item(Long id, String nome, String descricao, BigDecimal valorBase, BigDecimal valorPromo,
+			Long ordem, String ingredientes, Imagem imagem, Categoria categoria,
 			List<ItemPedido> itemPedido, List<Acompanhamento> acompanhamentos) {
 		super();
 		this.id = id;
 		this.nome = nome;
-		this.tipo = tipo;
 		this.descricao = descricao;
 		this.valorBase = valorBase;
 		this.valorPromo = valorPromo;

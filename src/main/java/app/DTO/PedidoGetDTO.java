@@ -33,9 +33,11 @@ public record PedidoGetDTO(
 	    
 	    String nome_entregador,
 	    @NotNull
+	    BigDecimal subTotal,
+	    
+	    BigDecimal desconto,
+	    @NotNull
 	    BigDecimal valorTotal,
-	    // Campos de pagamento exibidos no app do quiosque/entregador.
-	    // `valorPagoCliente` e `valorTroco` so existem para dinheiro.
 	    FormaPagamento formaPagamento,
 	    StatusPagamento statusPagamento,
 	    BigDecimal valorPagoCliente,
@@ -83,7 +85,9 @@ public record PedidoGetDTO(
 	    	p.getCliente().getId(),
 	    	nomeCliente,
 	    	p.getEntregador() != null ? p.getEntregador().getId() : null,
-	        p.getEntregador() != null ? p.getEntregador().getNome() : null,
+	    	p.getEntregador() != null ? p.getEntregador().getNome() : null,
+	        p.getSubTotal(),
+	        p.getDesconto(),
 	        p.getValorTotal(),
 	        p.getFormaPagamento(),
 	        p.getStatusPagamento(),

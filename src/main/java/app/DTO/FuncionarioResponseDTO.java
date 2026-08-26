@@ -26,7 +26,7 @@ public record FuncionarioResponseDTO(
 	    return new FuncionarioResponseDTO(
 	    	u.getPublicId(),
 	        u.getNome(),
-	        u.getEmail(),
+	        u.getLogin(),
 	        u.getRole(),
 	        u.getTelefone(),
 	        u.getImagem() != null ? u.getImagem().getUrl() : null,

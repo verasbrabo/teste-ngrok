@@ -39,8 +39,10 @@ public class ItemPedido {
 	@ManyToMany
 	private List<Acompanhamento> acompanhamentos = new ArrayList<>();
 	
-	@ManyToMany 
-	private List<Ingrediente> ingredientesRemovido = new ArrayList<>();
+//	@ManyToMany 
+//	private List<Ingrediente> ingredientesRemovido = new ArrayList<>();
+	
+	private String ingredientesRemovido;
 	
 	public void calcularSubtotal() {
 
@@ -70,11 +72,11 @@ public class ItemPedido {
 	    this.acompanhamentos.addAll(acompanhamentos);
 	}
 	
-	public void removerIngredientes(
-			List<Ingrediente> ingredientes) {
-		
-		this.ingredientesRemovido.addAll(ingredientes);
-	}
+//	public void removerIngredientes(
+//			List<Ingrediente> ingredientes) {
+//		
+//		this.ingredientesRemovido.addAll(ingredientes);
+//	}
 
 	public Long getId() {
 		return id;
@@ -140,16 +142,16 @@ public class ItemPedido {
 		this.acompanhamentos = acompanhamentos;
 	}
 
-	public List<Ingrediente> getIngredientesRemovido() {
+	public String getIngredientesRemovido() {
 		return ingredientesRemovido;
 	}
 
-	public void setIngredientesRemovido(List<Ingrediente> ingredientesRemovido) {
+	public void setIngredientesRemovido(String ingredientesRemovido) {
 		this.ingredientesRemovido = ingredientesRemovido;
 	}
 
 	public ItemPedido(Long id, Integer quantidade, BigDecimal valorUnit, BigDecimal valorAcomp, BigDecimal subTotal,
-			Item item, Pedido pedido, List<Acompanhamento> acompanhamentos, List<Ingrediente> ingredientesRemovido) {
+			Item item, Pedido pedido, List<Acompanhamento> acompanhamentos, String ingredientesRemovido) {
 		super();
 		this.id = id;
 		this.quantidade = quantidade;

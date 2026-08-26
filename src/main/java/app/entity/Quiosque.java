@@ -43,16 +43,18 @@ public class Quiosque {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id; 
+	public String getCodigo() {
+		return "Q" + id;
+		// return String.format("Q%04d", id);
+	}
 	private String nome;
 	@Column(unique = true, nullable = false)
 	private String email;
-	@Column(unique = true, nullable = false)
-	private String cnpj;
-	@NotNull
+	
 	private LocalTime openingTime;
-	@NotNull
+	
 	private LocalTime closingTime;
-	@NotNull
+	
 	private Long distAtendimento;
 	
 	private Long somaTempoEntrega;
@@ -67,33 +69,39 @@ public class Quiosque {
 	private AvaliacaoResumo avaliacaoResumo;
 	@Embedded
 	private Coordenada coordenada;
+	
+	private String cnpj;
+	
+	@ManyToOne
+	@JoinColumn(name = "proprietario_id", nullable = false)
+	private Funcionario proprietario;
 
 	@OneToOne
 	@JoinColumn(name = "imagem_id")
 	private Imagem imagem;
 	
-	@OneToOne
-	@JoinColumn(name = "proprietario_id")
-	private Usuario proprietario;
+	@OneToMany(mappedBy = "quiosque")
+	private List<Cupom> cupons;
+	
 	
 	@OneToMany(mappedBy = "quiosque", cascade = CascadeType.ALL)
-	private List<Usuario> funcionarios;
+	private List<Funcionario> funcionarios;
 	
 	@OneToMany(mappedBy = "quiosque", cascade = CascadeType.ALL)
     private List<Acompanhamento> acompanhamentos;
 	
-	public Quiosque(String nome, String email, String cnpj, LocalTime openingTime, LocalTime closingTime, Long distAtendimento, Endereco endereco, AvaliacaoResumo avaliacaoResumo,
-			Coordenada coordenada, Usuario proprietario, StatusConta status, Long somaTempoEntrega, Long qtdPedidosFinalizados) {
+	public Quiosque(String nome, String email, LocalTime openingTime, LocalTime closingTime, Long distAtendimento, Endereco endereco, AvaliacaoResumo avaliacaoResumo,
+			Coordenada coordenada, String cnpj, Funcionario proprietario, StatusConta status, Long somaTempoEntrega, Long qtdPedidosFinalizados) {
 		super();
 		this.nome = nome;
 		this.email = email;
-		this.cnpj = cnpj;
 		this.openingTime = openingTime;
 		this.closingTime = closingTime;
 		this.distAtendimento = distAtendimento;
 		this.endereco = endereco;
 		this.avaliacaoResumo = avaliacaoResumo;
 		this.coordenada = coordenada;
+		this.cnpj = cnpj;
 		this.proprietario = proprietario;
 		this.status = status;
 		this.somaTempoEntrega = somaTempoEntrega;
@@ -177,6 +185,10 @@ public class Quiosque {
 		    this.nome = quiosque.nome();
 		}
 		
+		if(quiosque.cnpj() != null) {
+			this.cnpj = quiosque.cnpj();
+		}
+		
 		if (quiosque.openingTime() != null) {
 			this.openingTime = quiosque.openingTime() ;
 		}
@@ -252,14 +264,6 @@ public class Quiosque {
 
 	public void setEmail(String email) {
 		this.email = email;
-	}
-
-	public String getCnpj() {
-		return cnpj;
-	}
-
-	public void setCnpj(String cnpj) {
-		this.cnpj = cnpj;
 	}
 
 	public LocalTime getOpeningTime() {
@@ -342,19 +346,11 @@ public class Quiosque {
 		this.imagem = imagem;
 	}
 
-	public Usuario getProprietario() {
-		return proprietario;
-	}
-
-	public void setProprietario(Usuario proprietario) {
-		this.proprietario = proprietario;
-	}
-
-	public List<Usuario> getFuncionarios() {
+	public List<Funcionario> getFuncionarios() {
 		return funcionarios;
 	}
 
-	public void setFuncionarios(List<Usuario> funcionarios) {
+	public void setFuncionarios(List<Funcionario> funcionarios) {
 		this.funcionarios = funcionarios;
 	}
 
@@ -390,17 +386,16 @@ public class Quiosque {
 		this.status = status;
 	}
 
-	public Quiosque(Long id, String nome, String email, String cnpj, @NotNull LocalTime openingTime,
-			@NotNull LocalTime closingTime, @NotNull Long distAtendimento, Long somaTempoEntrega,
+	public Quiosque(Long id, String nome, String email, LocalTime openingTime,
+		    LocalTime closingTime, Long distAtendimento, Long somaTempoEntrega,
 			Long qtdPedidosFinalizados, Long distancia, Endereco endereco, AvaliacaoResumo avaliacaoResumo,
-			Coordenada coordenada, Imagem imagem, Usuario proprietario, List<Usuario> funcionarios,
+			Coordenada coordenada, String cnpj, Imagem imagem, Funcionario proprietario, List<Funcionario> funcionarios,
 			List<Acompanhamento> acompanhamentos, List<Pedido> pedidos, List<Categoria> categorias,
 			StatusConta status) {
 		super();
 		this.id = id;
 		this.nome = nome;
 		this.email = email;
-		this.cnpj = cnpj;
 		this.openingTime = openingTime;
 		this.closingTime = closingTime;
 		this.distAtendimento = distAtendimento;
@@ -410,6 +405,7 @@ public class Quiosque {
 		this.endereco = endereco;
 		this.avaliacaoResumo = avaliacaoResumo;
 		this.coordenada = coordenada;
+		this.cnpj = cnpj;
 		this.imagem = imagem;
 		this.proprietario = proprietario;
 		this.funcionarios = funcionarios;
@@ -422,5 +418,30 @@ public class Quiosque {
 	public Quiosque() {
 		super();
 	}
+
+	public String getCnpj() {
+		return cnpj;
+	}
+
+	public void setCnpj(String cnpj) {
+		this.cnpj = cnpj;
+	}
+
+	public Funcionario getProprietario() {
+		return proprietario;
+	}
+
+	public void setProprietario(Funcionario proprietario) {
+		this.proprietario = proprietario;
+	}
+
+	public List<Cupom> getCupons() {
+		return cupons;
+	}
+
+	public void setCupons(List<Cupom> cupons) {
+		this.cupons = cupons;
+	}
+	
 	
 }
