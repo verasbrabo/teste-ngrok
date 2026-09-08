@@ -9,6 +9,7 @@ import app.enums.UserRole;
 
 public record FuncionarioResponseDTO(
 		UUID id,
+		Long quiosqueId,
 		String nome,
 		String email,
 		UserRole role,
@@ -30,6 +31,9 @@ public record FuncionarioResponseDTO(
 		Funcionario funcionario = u instanceof Funcionario f ? f : null;
 	    return new FuncionarioResponseDTO(
 	    	u.getPublicId(),
+				funcionario != null && funcionario.getQuiosque() != null
+						? funcionario.getQuiosque().getId()
+						: null,
 	        u.getNome(),
 	        u.getLogin(),
 	        u.getRole(),

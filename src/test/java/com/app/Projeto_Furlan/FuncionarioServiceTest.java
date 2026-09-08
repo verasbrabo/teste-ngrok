@@ -51,6 +51,7 @@ class FuncionarioServiceTest {
 		when(quiosqueSelecionado.getId()).thenReturn(quiosqueSelecionadoId);
 		when(usuarioRepository.findByQuiosqueId(quiosqueSelecionadoId))
 				.thenReturn(List.of(funcionario));
+		when(funcionario.getQuiosque()).thenReturn(quiosqueSelecionado);
 		when(funcionario.getPublicId()).thenReturn(funcionarioId);
 		when(funcionario.getNome()).thenReturn("Funcionario do quiosque 22");
 
@@ -59,6 +60,7 @@ class FuncionarioServiceTest {
 
 		assertEquals(1, resultado.size());
 		assertEquals(funcionarioId, resultado.get(0).id());
+		assertEquals(quiosqueSelecionadoId, resultado.get(0).quiosqueId());
 		assertEquals("Funcionario do quiosque 22", resultado.get(0).nome());
 		verify(usuarioRepository).findByQuiosqueId(quiosqueSelecionadoId);
 	}
