@@ -149,17 +149,21 @@ public class AuthService implements UserDetailsService{
 	// mesma convenção já usada nos proprietários sem CPF, evitando o
 	// "Column 'cpf' cannot be null" (não há unique em cpf, então "" repetido
 	// não conflita).
-	private static String normalizarCpf(String cpf) {
-		return validarCPF(cpf) ? "" : cpf;
+	static String normalizarCpf(String cpf) {
+		if (cpf == null || cpf.isBlank())
+			return "";
+
+		String cpfNormalizado = cpf.replaceAll("\\D", "");
+		return validarCPF(cpfNormalizado) ? cpfNormalizado : "";
 	}
 	
 	private static boolean validarCPF(String cpf) {
+		if(cpf == null || cpf.isBlank()) {
+			return false;
+		}
+
 	    // Remove pontos e hífen
 	    cpf = cpf.replaceAll("\\D", "");
-
-	    if(cpf == null) {
-	    	return false;
-	    }
 	    
 	    // CPF deve ter exatamente 11 dígitos
 	    if (cpf.length() != 11) {
