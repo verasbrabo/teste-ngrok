@@ -44,10 +44,11 @@ public class FuncionarioService {
 	public List<FuncionarioResponseDTO> getFuncionarios(Usuario usuario, Long id_quiosque) {
 		Quiosque q = findQuiosqueForUser(usuario, id_quiosque);
 
-		List<Funcionario> usuarios = q.getFuncionarios();
+		// A consulta usa explicitamente o ID validado para impedir que a coleção
+		// carregada de outro quiosque seja reutilizada pela sessão de persistência.
+		List<Funcionario> usuarios = usuarioRepository.findByQuiosqueId(q.getId());
 
 		return usuarios.stream().map(this::toDTO).toList();
-
 	}
 
 	public FuncionarioResponseDTO getFuncionario(Usuario usuario, Long id_quiosque, UUID id) {
