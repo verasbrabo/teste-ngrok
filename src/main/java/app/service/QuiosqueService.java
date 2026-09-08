@@ -38,6 +38,7 @@ import app.entity.Pedido;
 import app.entity.Quiosque;
 import app.entity.Usuario;
 import app.enums.StatusConta;
+import app.enums.UserRole;
 import app.repository.AvaliacaoProjection;
 import app.repository.CategoriaRepository;
 import app.repository.ItemPedidoRepository;
@@ -226,6 +227,30 @@ public class QuiosqueService {
 //	public QuiosqueCreateDTO get(Usuario usuario, Long id) {
 //		return QuiosqueCreateDTO.from(findQuiosqueForUser(usuario, id));
 //	}
+
+	/**
+	 * Carrega o quiosque vinculado ao funcionário dentro de uma transação.
+	 *
+	 * O usuário recebido do SecurityContext pode estar desconectado da sessão que
+	 * o autenticou. Reconsultar o vínculo mantém categorias, itens e demais
+	 * associações lazy disponíveis durante a montagem do DTO.
+	 */
+	@Transactional
+	public QuiosqueViewDTO findByFuncionario(Funcionario usuario) {
+		// Proprietários escolhem explicitamente um quiosque pela lista de vínculos.
+		if (usuario.getRole() == UserRole.PROPRIETARIO) {
+			throw new ResponseStatusException(
+					HttpStatus.FORBIDDEN, "Selecione um quiosque do proprietário");
+		}
+
+		// A entidade retornada por esta consulta pertence à transação atual; assim
+		// o QuiosqueViewDTO pode percorrer as coleções lazy com segurança.
+		Quiosque quiosque = quiosqueRepository.findByFuncionariosContaining(usuario)
+				.orElseThrow(() -> new ResponseStatusException(
+						HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
+
+		return QuiosqueViewDTO.from(quiosque);
+	}
 
 	public List<QuiosqueNearByResponseDTO> findByDistancia(
 	        double latUsuario,

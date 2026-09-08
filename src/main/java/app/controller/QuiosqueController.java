@@ -58,6 +58,16 @@ public class QuiosqueController {
 			 return ResponseEntity.status(HttpStatus.CREATED).body(quiosque);						
 	}
 
+	/**
+	 * Retorna o quiosque vinculado ao gerente ou funcionário autenticado.
+	 */
+	@GetMapping("/me")
+	@PreAuthorize("hasAnyRole('GERENTE', 'FUNCIONARIO')")
+	public ResponseEntity<QuiosqueViewDTO> viewFuncionario(
+			@AuthenticationPrincipal Funcionario usuario) {
+		return ResponseEntity.ok(this.quiosqueService.findByFuncionario(usuario));
+	}
+
 	 @PutMapping("/{id_quiosque}")
 	 @PreAuthorize("hasAnyRole('GERENTE')")
 	 public ResponseEntity<QuiosqueCreateDTO> update(
@@ -102,15 +112,6 @@ public class QuiosqueController {
 		return  ResponseEntity.status(HttpStatus.OK).body(
 				this.quiosqueService.findAvaliacoesById(id_quiosque));
 	}
-	
-	
-//	@GetMapping("/me")
-//	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
-//	public ResponseEntity<QuiosqueViewDTO> viewFuncionario(
-//			@AuthenticationPrincipal Usuario administrador){
-//		return  ResponseEntity.status(HttpStatus.OK).body(
-//				this.quiosqueService.findByFuncionario(administrador));
-//	}
 	
 	@DeleteMapping("/{id_quiosque}")
 	@PreAuthorize("hasRole('PROPRIETARIO')")
