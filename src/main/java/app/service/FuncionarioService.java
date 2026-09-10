@@ -1,6 +1,7 @@
 package app.service;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +49,18 @@ public class FuncionarioService {
 		// carregada de outro quiosque seja reutilizada pela sessão de persistência.
 		List<Funcionario> usuarios = usuarioRepository.findByQuiosqueId(q.getId());
 
-		return usuarios.stream().map(this::toDTO).toList();
+		// O gerente autenticado não administra a própria conta por esta tela.
+		// O proprietário continua vendo todos os vínculos do quiosque.
+		return usuarios.stream()
+				.filter(funcionario -> deveExibirNaListagem(usuario, funcionario))
+				.map(this::toDTO)
+				.toList();
+	}
+
+	/** Aplica a visibilidade específica do gerente sem alterar a consulta por quiosque. */
+	static boolean deveExibirNaListagem(Usuario usuario, Funcionario funcionario) {
+		return usuario.getRole() != UserRole.GERENTE
+				|| !Objects.equals(usuario.getPublicId(), funcionario.getPublicId());
 	}
 
 	public FuncionarioResponseDTO getFuncionario(Usuario usuario, Long id_quiosque, UUID id) {

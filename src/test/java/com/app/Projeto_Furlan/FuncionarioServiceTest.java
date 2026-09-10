@@ -20,6 +20,7 @@ import app.auth.AuthRepository;
 import app.entity.Funcionario;
 import app.entity.Quiosque;
 import app.entity.Usuario;
+import app.enums.UserRole;
 import app.repository.QuiosqueRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,5 +64,32 @@ class FuncionarioServiceTest {
 		assertEquals(quiosqueSelecionadoId, resultado.get(0).quiosqueId());
 		assertEquals("Funcionario do quiosque 22", resultado.get(0).nome());
 		verify(usuarioRepository).findByQuiosqueId(quiosqueSelecionadoId);
+	}
+
+	@Test
+	void deveOcultarProprioGerenteDaListagem() {
+		Long quiosqueId = 22L;
+		UUID gerenteId = UUID.randomUUID();
+		UUID funcionarioId = UUID.randomUUID();
+		Funcionario gerente = mock(Funcionario.class);
+		Funcionario funcionario = mock(Funcionario.class);
+		Quiosque quiosque = mock(Quiosque.class);
+
+		when(gerente.getRole()).thenReturn(UserRole.GERENTE);
+		when(gerente.getPublicId()).thenReturn(gerenteId);
+		when(quiosqueRepository.findById(quiosqueId)).thenReturn(Optional.of(quiosque));
+		when(quiosque.usuarioPossuiAcesso(gerente)).thenReturn(true);
+		when(quiosque.getId()).thenReturn(quiosqueId);
+		when(usuarioRepository.findByQuiosqueId(quiosqueId))
+				.thenReturn(List.of(gerente, funcionario));
+		when(funcionario.getPublicId()).thenReturn(funcionarioId);
+		when(funcionario.getQuiosque()).thenReturn(quiosque);
+		when(funcionario.getNome()).thenReturn("Funcionario visivel");
+
+		List<FuncionarioResponseDTO> resultado = funcionarioService
+				.getFuncionarios(gerente, quiosqueId);
+
+		assertEquals(1, resultado.size());
+		assertEquals(funcionarioId, resultado.get(0).id());
 	}
 }

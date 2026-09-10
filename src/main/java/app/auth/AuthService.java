@@ -83,17 +83,11 @@ public class AuthService implements UserDetailsService{
 	        throw new RuntimeException("Usuário já cadastrado");
 
 	    Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);
+	    UserRole role = validarCargoCadastro(usuario.getRole(), data.role());
 	    
 	    String senha = UUID.randomUUID().toString().substring(0, 8);
 	    
 	    String encryptedPassword = passwordEncoder.encode(senha);
-	    
-	    // Respeita o cargo pedido (FUNCIONARIO ou GERENTE). Antes era sempre
-	    // FUNCIONARIO, então "gerentes" criados pelo app ficavam sem as
-	    // permissões de gerente (editar quiosque, banner, funcionários...).
-	    UserRole role = data.role() == UserRole.GERENTE
-	    		? UserRole.GERENTE
-	    		: UserRole.FUNCIONARIO;
 	    
 	    // Gerar um login usando personalizado usando o nome e o quiosque 
 	    
@@ -112,6 +106,21 @@ public class AuthService implements UserDetailsService{
 	    this.quiosqueRepository.save(quiosque);
 	    RegisterAdminResponseDTO response = new RegisterAdminResponseDTO(user.getPublicId(), quiosque.getNome(), senha, user.getNome(),user.getLogin(), user.getRole(), user.getTelefone());
 	    return response;
+	}
+
+	/** Garante que somente o proprietário possa conceder o cargo de gerente. */
+	static UserRole validarCargoCadastro(UserRole cargoSolicitante, UserRole cargoSolicitado) {
+		if (cargoSolicitado != UserRole.FUNCIONARIO && cargoSolicitado != UserRole.GERENTE) {
+			throw new ResponseStatusException(
+					HttpStatus.BAD_REQUEST, "Cargo inválido para funcionário");
+		}
+
+		if (cargoSolicitado == UserRole.GERENTE && cargoSolicitante != UserRole.PROPRIETARIO) {
+			throw new ResponseStatusException(
+					HttpStatus.FORBIDDEN, "Apenas proprietários podem cadastrar gerentes");
+		}
+
+		return cargoSolicitado;
 	}
 	
 	private String procurarDuplicatas(String username) {
