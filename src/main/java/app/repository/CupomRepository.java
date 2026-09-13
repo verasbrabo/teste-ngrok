@@ -17,4 +17,7 @@ public interface CupomRepository extends JpaRepository<Cupom, Long>{
 		    Boolean ativo,
 		    LocalDateTime agora
 		);
+
+	/** Retorna também cupons inativos e expirados para a tela administrativa. */
+	List<Cupom> findByQuiosqueIdOrderByIdDesc(Long id_quiosque);
 }

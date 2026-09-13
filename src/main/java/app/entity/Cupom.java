@@ -76,7 +76,8 @@ public class Cupom {
     			desconto = subTotal.multiply(this.valorDesconto).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     		}
     		
-    		return desconto.min(descontoMaximo);
+			// O teto em reais é opcional e se aplica somente quando foi configurado.
+			return descontoMaximo == null ? desconto : desconto.min(descontoMaximo);
     		
     	}
     	return BigDecimal.ZERO;
