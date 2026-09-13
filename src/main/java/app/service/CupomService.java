@@ -13,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 import app.DTO.CupomCreateDTO;
 import app.DTO.CupomRequestDTO;
 import app.entity.Cupom;
+import app.entity.Cliente;
 import app.entity.Quiosque;
 import app.entity.Usuario;
 import app.enums.TipoCupom;
@@ -57,6 +58,21 @@ public class CupomService {
 				id_quiosque, true, LocalDateTime.now());
 		
 		return cupons.stream().map(CupomCreateDTO::from).toList();
+	}
+
+	public List<CupomCreateDTO> findDisponiveisByQuiosque(
+			Cliente cliente,
+			Long id_quiosque) {
+		// Diferencia um quiosque sem cupons de um id de quiosque inexistente.
+		if (!quiosqueRepository.existsById(id_quiosque)) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Quiosque nao encontrado");
+		}
+
+		return cupomRepository.findDisponiveisParaCliente(
+				id_quiosque, cliente.getId(), LocalDateTime.now())
+				.stream()
+				.map(CupomCreateDTO::from)
+				.toList();
 	}
 
 	public List<CupomCreateDTO> findAllByQuiosque(Usuario proprietario, Long id_quiosque) {

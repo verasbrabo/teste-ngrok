@@ -22,6 +22,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import app.DTO.AtualizarStatusDTO;
@@ -33,6 +35,7 @@ import app.DTO.MotivoCancelamentoDTO;
 import app.DTO.PedidoDTO;
 import app.DTO.PedidoInternoDTO;
 import app.DTO.PedidoGetDTO;
+import app.DTO.PedidoLoteDTO;
 import app.DTO.PedidoCreateResponseDTO;
 import app.DTO.ValidarCodigoDTO;
 import app.auth.AuthRepository;
@@ -199,6 +202,28 @@ public class PedidoService {
 	}	
 	
 	@Transactional
+	public List<PedidoGetDTO> createPedidosEmLote(Cliente cliente, PedidoLoteDTO data) {
+		Set<Long> quiosques = new HashSet<>();
+		for (PedidoDTO pedido : data.pedidos()) {
+			// Um pedido por quiosque impede que dois cupons disputem o mesmo
+			// subtotal dentro da mesma finalizacao.
+			if (!quiosques.add(pedido.quiosque())) {
+				throw new ResponseStatusException(
+						HttpStatus.BAD_REQUEST,
+						"Existe mais de um pedido para o mesmo quiosque");
+			}
+		}
+
+		List<PedidoGetDTO> pedidos = new ArrayList<>();
+		for (PedidoDTO pedido : data.pedidos()) {
+			// A excecao de qualquer pedido permanece sem tratamento para que o
+			// Spring reverta pedidos e usos de cupom ja preparados neste lote.
+			pedidos.add(createMeuPedido(cliente, pedido));
+		}
+		return pedidos;
+	}
+
+	@Transactional
 	public PedidoGetDTO createMeuPedido(
 			Cliente cliente, 
 			PedidoDTO data) {
@@ -274,7 +299,7 @@ public class PedidoService {
 
 		Pedido salvo = pedidoRepository.save(pedido);
 		// Avisa o quiosque (push/FCM) para a lista de pedidos atualizar sozinha.
-		notificarQuiosque(quiosque, salvo, "Novo pedido recebido",
+		notificarQuiosqueAposCommit(quiosque, salvo, "Novo pedido recebido",
 				"Pedido de " + cliente.getNome());
 		return PedidoGetDTO.from(salvo);
 	}
@@ -346,6 +371,46 @@ public class PedidoService {
 		for (String token : tokens)
 			notificationService.sendNotificationToDevice(
 					NotificationRequestDTO.novoPedido(token, titulo, corpo, pedido.getId().toString()));
+	}
+
+	/**
+	 * Registra a notificacao do novo pedido somente depois do commit. Assim um
+	 * lote revertido nao aparece no app do quiosque como pedido inexistente.
+	 */
+	private void notificarQuiosqueAposCommit(
+			Quiosque quiosque,
+			Pedido pedido,
+			String titulo,
+			String corpo) {
+		Set<String> tokens = new HashSet<>();
+		if (quiosque.getProprietario() != null
+				&& quiosque.getProprietario().getDeviceToken() != null) {
+			tokens.add(quiosque.getProprietario().getDeviceToken());
+		}
+		if (quiosque.getFuncionarios() != null) {
+			for (Usuario funcionario : quiosque.getFuncionarios()) {
+				if (funcionario.getDeviceToken() != null) {
+					tokens.add(funcionario.getDeviceToken());
+				}
+			}
+		}
+
+		List<NotificationRequestDTO> notificacoes = tokens.stream()
+				.map(token -> NotificationRequestDTO.novoPedido(
+						token, titulo, corpo, pedido.getId().toString()))
+				.toList();
+		Runnable enviar = () -> notificacoes.forEach(notificationService::sendNotificationToDevice);
+
+		if (TransactionSynchronizationManager.isSynchronizationActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					enviar.run();
+				}
+			});
+			return;
+		}
+		enviar.run();
 	}
 
 	/**

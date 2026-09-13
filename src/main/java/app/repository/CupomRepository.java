@@ -38,4 +38,23 @@ public interface CupomRepository extends JpaRepository<Cupom, Long>{
 			  and c.dataExpiracao <= :agora
 			""")
 	int desativarExpirados(@Param("agora") LocalDateTime agora);
+
+	/** Lista apenas cupons que o cliente autenticado ainda nao utilizou. */
+	@Query("""
+			select c from Cupom c
+			where c.quiosque.id = :quiosqueId
+			  and c.ativo = true
+			  and c.excluido = false
+			  and c.dataExpiracao > :agora
+			  and not exists (
+			      select cc.id from CupomCliente cc
+			      where cc.cupom.id = c.id
+			        and cc.cliente.id = :clienteId
+			  )
+			order by c.id desc
+			""")
+	List<Cupom> findDisponiveisParaCliente(
+			@Param("quiosqueId") Long quiosqueId,
+			@Param("clienteId") Long clienteId,
+			@Param("agora") LocalDateTime agora);
 }

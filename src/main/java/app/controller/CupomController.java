@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import app.DTO.CupomCreateDTO;
 import app.DTO.CupomRequestDTO;
+import app.entity.Cliente;
 import app.entity.Usuario;
 import app.service.CupomService;
 import jakarta.validation.Valid;
@@ -74,6 +75,16 @@ public class CupomController {
 			@PathVariable Long id){
 		
 		return ResponseEntity.ok(this.cupomService.updateStatus(administrador, id_quiosque, id));
+	}
+
+	@GetMapping("/cupons/disponiveis")
+	@PreAuthorize("hasRole('CLIENTE')")
+	public ResponseEntity<List<CupomCreateDTO>> findDisponiveisByQuiosque(
+			@AuthenticationPrincipal Cliente cliente,
+			@PathVariable Long id_quiosque) {
+		// Cupons usados pelo cliente nao voltam para a tela de pagamento.
+		return ResponseEntity.ok(
+				cupomService.findDisponiveisByQuiosque(cliente, id_quiosque));
 	}
 
 	@DeleteMapping("/cupons/{id}")

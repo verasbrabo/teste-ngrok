@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import app.DTO.PedidoDTO;
 import app.DTO.PedidoInternoDTO;
+import app.DTO.PedidoLoteDTO;
 import app.DTO.PedidoGetDTO;
 import app.DTO.AtualizarProximidadeDTO;
 import app.DTO.AtualizarStatusDTO;
@@ -89,6 +90,16 @@ public class PedidoController {
 								@RequestBody @Valid PedidoDTO data) {
 
 		return ResponseEntity.status(HttpStatus.CREATED).body(this.pedidoService.createMeuPedido(cliente, data));
+	}
+
+	@PreAuthorize("hasRole('CLIENTE')")
+	@PostMapping("/pedidos/lote")
+	public ResponseEntity<List<PedidoGetDTO>> createPedidosEmLote(
+			@AuthenticationPrincipal Cliente cliente,
+			@RequestBody @Valid PedidoLoteDTO data) {
+		// Todos os quiosques do carrinho sao confirmados ou revertidos juntos.
+		return ResponseEntity.status(HttpStatus.CREATED)
+				.body(pedidoService.createPedidosEmLote(cliente, data));
 	}
 
 	@PreAuthorize("hasRole('FUNCIONARIO')")

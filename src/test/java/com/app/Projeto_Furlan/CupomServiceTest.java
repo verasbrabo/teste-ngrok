@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -13,6 +14,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import app.DTO.CupomRequestDTO;
 import app.entity.Cupom;
+import app.entity.Cliente;
 import app.entity.Quiosque;
 import app.entity.Usuario;
 import app.enums.TipoCupom;
@@ -118,6 +121,22 @@ class CupomServiceTest {
 
 		assertEquals(2, quantidade);
 		verify(cupomRepository).desativarExpirados(any(LocalDateTime.class));
+	}
+
+	@Test
+	void deveConsultarSomenteCuponsAindaDisponiveisParaOCliente() {
+		Long quiosqueId = 22L;
+		Cliente cliente = mock(Cliente.class);
+		when(cliente.getId()).thenReturn(9L);
+		when(quiosqueRepository.existsById(quiosqueId)).thenReturn(true);
+		when(cupomRepository.findDisponiveisParaCliente(
+				eq(quiosqueId), eq(9L), any(LocalDateTime.class)))
+				.thenReturn(List.of());
+
+		assertTrue(cupomService.findDisponiveisByQuiosque(cliente, quiosqueId).isEmpty());
+
+		verify(cupomRepository).findDisponiveisParaCliente(
+				eq(quiosqueId), eq(9L), any(LocalDateTime.class));
 	}
 
 	@Test
