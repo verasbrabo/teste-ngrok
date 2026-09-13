@@ -11,4 +11,7 @@ import app.entity.Cliente;
 public interface CupomClienteRepository extends JpaRepository<CupomCliente, Long> {
 	
 	boolean existsByCupomIdAndClienteId(Long cupomId, Long clienteId);
+
+	/** Libera o cupom quando o pedido associado nao sera concluido. */
+	long deleteByCupomIdAndClienteId(Long cupomId, Long clienteId);
 }

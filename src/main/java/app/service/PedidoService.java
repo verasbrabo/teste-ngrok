@@ -89,6 +89,7 @@ public class PedidoService {
 	@Autowired
 	private NotificationService notificationService;
 	
+	@Transactional
 	public PedidoCreateResponseDTO rejeitarPedido(
 			Usuario funcionario,
 			Long id_quiosque,
@@ -98,8 +99,14 @@ public class PedidoService {
 		
 		Pedido pedido = pedidoRepository.findByIdAndQuiosque(id, quiosque)
 	            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Pedido não encontrado")));
-		
+
+		if (!pedido.getStatus().podeIrPara(StatusPedido.REJEITADO)) {
+			throw new ResponseStatusException(
+					HttpStatus.BAD_REQUEST,
+					"Pedido não pode ser rejeitado");
+		}
 		pedido.setStatus(StatusPedido.REJEITADO);	
+		devolverCupomAoCliente(pedido);
 		
 		Cliente cliente = (Cliente) pedido.getCliente();
 		
@@ -133,6 +140,7 @@ public class PedidoService {
 		
 		Pedido pedido = pedidoRepository.findByIdAndQuiosque(id, quiosque)
 				 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Pedido não encontrado")));		
+		StatusPedido statusAnterior = pedido.getStatus();
 		
 		if(!pedido.getCliente().getRole().equals(UserRole.CLIENTE)) {
 			pedido.cancelar();
@@ -144,12 +152,14 @@ public class PedidoService {
 			pedido.cancelar();
 		}					
 		
-		if(!pedido.getStatus().equals(StatusPedido.CANCELADO)) {	
+		if(statusAnterior == pedido.getStatus()
+				|| !pedido.getStatus().equals(StatusPedido.CANCELADO)) {
 			throw new ResponseStatusException(
 				    HttpStatus.BAD_REQUEST,
 				    "Pedido não pode ser cancelado"
 				);
 		}
+		devolverCupomAoCliente(pedido);
 		
 		Cliente cliente = (Cliente) pedido.getCliente();
 		
@@ -504,18 +514,34 @@ public class PedidoService {
 		}
 	}
 
+	/**
+	 * Remove somente o registro de consumo. O pedido continua apontando para o
+	 * cupom para preservar o desconto exibido no historico.
+	 */
+	private void devolverCupomAoCliente(Pedido pedido) {
+		if (pedido.getCupom() == null || !(pedido.getCliente() instanceof Cliente cliente)) {
+			return;
+		}
+
+		cupomClienteRepository.deleteByCupomIdAndClienteId(
+				pedido.getCupom().getId(), cliente.getId());
+	}
+
 	@Transactional
 	public String cancelarPedido(Usuario usuario, UUID id) {
 		Pedido pedido = pedidoRepository.findByClienteAndId(usuario, id)
 				 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Pedido não encontrado")));
-		
+		StatusPedido statusAnterior = pedido.getStatus();
+
 		pedido.cancelar();
-		if(!pedido.getStatus().equals(StatusPedido.CANCELADO)) {	
+		if(statusAnterior == pedido.getStatus()
+				|| !pedido.getStatus().equals(StatusPedido.CANCELADO)) {
 			throw new ResponseStatusException(
 				    HttpStatus.BAD_REQUEST,
 				    "Pedido não pode ser cancelado"
 				);
 		}
+		devolverCupomAoCliente(pedido);
 		
 		    
 	    boolean possuiPedidoAtivo =

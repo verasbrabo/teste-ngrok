@@ -32,6 +32,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.server.ResponseStatusException;
 
 import app.DTO.ItemPedidoDTO;
+import app.DTO.MotivoCancelamentoDTO;
 import app.DTO.PedidoDTO;
 import app.DTO.PedidoGetDTO;
 import app.DTO.PedidoLoteDTO;
@@ -44,7 +45,9 @@ import app.entity.Cupom;
 import app.entity.Item;
 import app.entity.Pedido;
 import app.entity.Quiosque;
+import app.entity.Usuario;
 import app.enums.FormaPagamento;
+import app.enums.StatusPedido;
 import app.enums.TipoCupom;
 import app.repository.AcompanhamentoRepository;
 import app.repository.CupomRepository;
@@ -252,10 +255,82 @@ class PedidoTransacaoServiceTest {
 		}
 	}
 
+	@Test
+	void deveDevolverCupomQuandoClienteCancelaPedido() {
+		Cliente cliente = cliente();
+		Quiosque quiosque = prepararQuiosque(10L);
+		Pedido pedido = pedidoComCupom(cliente, quiosque, StatusPedido.CRIADO, 8L);
+		when(pedidoRepository.findByClienteAndId(cliente, pedido.getId()))
+				.thenReturn(Optional.of(pedido));
+		when(pedidoRepository.save(pedido)).thenReturn(pedido);
+
+		String status = pedidoService.cancelarPedido(cliente, pedido.getId());
+
+		assertEquals(StatusPedido.CANCELADO.name(), status);
+		verify(cupomClienteRepository).deleteByCupomIdAndClienteId(8L, 7L);
+		assertNotNull(pedido.getCupom());
+	}
+
+	@Test
+	void deveDevolverCupomQuandoQuiosqueCancelaPedido() {
+		Cliente cliente = cliente();
+		Usuario funcionario = mock(Usuario.class);
+		Quiosque quiosque = prepararQuiosque(10L);
+		when(quiosque.usuarioPossuiAcesso(funcionario)).thenReturn(true);
+		Pedido pedido = pedidoComCupom(cliente, quiosque, StatusPedido.ACEITO, 8L);
+		when(pedidoRepository.findByIdAndQuiosque(pedido.getId(), quiosque))
+				.thenReturn(Optional.of(pedido));
+		when(pedidoRepository.save(pedido)).thenReturn(pedido);
+
+		pedidoService.quiosqueCancelarPedido(
+				funcionario,
+				10L,
+				pedido.getId(),
+				new MotivoCancelamentoDTO("Sem estoque"));
+
+		assertEquals(StatusPedido.CANCELADO, pedido.getStatus());
+		verify(cupomClienteRepository).deleteByCupomIdAndClienteId(8L, 7L);
+	}
+
+	@Test
+	void deveDevolverCupomQuandoQuiosqueRejeitaPedido() {
+		Cliente cliente = cliente();
+		Usuario funcionario = mock(Usuario.class);
+		Quiosque quiosque = prepararQuiosque(10L);
+		when(quiosque.usuarioPossuiAcesso(funcionario)).thenReturn(true);
+		Pedido pedido = pedidoComCupom(cliente, quiosque, StatusPedido.CRIADO, 8L);
+		when(pedidoRepository.findByIdAndQuiosque(pedido.getId(), quiosque))
+				.thenReturn(Optional.of(pedido));
+		when(pedidoRepository.save(pedido)).thenReturn(pedido);
+
+		pedidoService.rejeitarPedido(funcionario, 10L, pedido.getId());
+
+		assertEquals(StatusPedido.REJEITADO, pedido.getStatus());
+		verify(cupomClienteRepository).deleteByCupomIdAndClienteId(8L, 7L);
+	}
+
+	@Test
+	void naoDeveDevolverCupomNovamenteParaPedidoJaCancelado() {
+		Cliente cliente = cliente();
+		Quiosque quiosque = prepararQuiosque(10L);
+		Pedido pedido = pedidoComCupom(cliente, quiosque, StatusPedido.CANCELADO, 8L);
+		when(pedidoRepository.findByClienteAndId(cliente, pedido.getId()))
+				.thenReturn(Optional.of(pedido));
+
+		ResponseStatusException erro = assertThrows(
+				ResponseStatusException.class,
+				() -> pedidoService.cancelarPedido(cliente, pedido.getId()));
+
+		assertEquals(HttpStatus.BAD_REQUEST, erro.getStatusCode());
+		verify(cupomClienteRepository, never())
+				.deleteByCupomIdAndClienteId(any(), any());
+	}
+
 	private Cliente cliente() {
 		Cliente cliente = mock(Cliente.class);
 		lenient().when(cliente.getId()).thenReturn(7L);
 		lenient().when(cliente.getNome()).thenReturn("Cliente Teste");
+		lenient().when(cliente.getRole()).thenReturn(app.enums.UserRole.CLIENTE);
 		return cliente;
 	}
 
@@ -276,6 +351,27 @@ class PedidoTransacaoServiceTest {
 		lenient().when(item.getNome()).thenReturn("Item " + id);
 		lenient().when(item.getValorFinal()).thenReturn(new BigDecimal(valor));
 		return item;
+	}
+
+	private Pedido pedidoComCupom(
+			Cliente cliente,
+			Quiosque quiosque,
+				StatusPedido status,
+				Long cupomId) {
+		Cupom cupom = mock(Cupom.class);
+		lenient().when(cupom.getId()).thenReturn(cupomId);
+		Pedido pedido = new Pedido(
+				LocalDateTime.now(),
+				null,
+				cliente,
+				quiosque,
+				new java.util.ArrayList<>(),
+				status,
+				UUID.randomUUID());
+		pedido.setId(UUID.randomUUID());
+		pedido.setCupom(cupom);
+		pedido.setPrecisaMaquininha(false);
+		return pedido;
 	}
 
 	private ItemPedidoDTO itemPedido(Long id) {
