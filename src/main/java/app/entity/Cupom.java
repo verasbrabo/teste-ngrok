@@ -65,6 +65,11 @@ public class Cupom {
     private LocalDateTime dataExpiracao;
 
     private boolean ativo;
+
+    // A exclusao logica preserva pedidos e registros de clientes que ja
+    // utilizaram o cupom, retirando-o apenas das telas e de novos usos.
+    @Column(nullable = false)
+    private boolean excluido = false;
     
     public BigDecimal calcularDesconto(BigDecimal subTotal) {
     	BigDecimal desconto;
@@ -88,6 +93,7 @@ public class Cupom {
         LocalDateTime agora = LocalDateTime.now();
 
         return this.isAtivo()
+				&& !this.isExcluido()
                 && this.getValorMinimo().compareTo(subTotal) <= 0
                 && this.getDataExpiracao().isAfter(agora);
     }
@@ -154,6 +160,14 @@ public class Cupom {
 
 	public void setAtivo(boolean ativo) {
 		this.ativo = ativo;
+	}
+
+	public boolean isExcluido() {
+		return excluido;
+	}
+
+	public void setExcluido(boolean excluido) {
+		this.excluido = excluido;
 	}
 
 	public Cupom(TipoCupom tipoCupom, Quiosque quiosque, BigDecimal valorDesconto, BigDecimal valorMinimo,

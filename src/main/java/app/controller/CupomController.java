@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -72,6 +73,17 @@ public class CupomController {
 			@PathVariable Long id_quiosque,
 			@PathVariable Long id){
 		
-			return ResponseEntity.ok(this.cupomService.updateStatus(administrador, id_quiosque, id));
+		return ResponseEntity.ok(this.cupomService.updateStatus(administrador, id_quiosque, id));
+	}
+
+	@DeleteMapping("/cupons/{id}")
+	@PreAuthorize("hasRole('PROPRIETARIO')")
+	public ResponseEntity<Void> delete(
+			@AuthenticationPrincipal Usuario administrador,
+			@PathVariable Long id_quiosque,
+			@PathVariable Long id) {
+		// A exclusao e logica para manter integro o historico dos pedidos.
+		cupomService.delete(administrador, id_quiosque, id);
+		return ResponseEntity.noContent().build();
 	}
 }

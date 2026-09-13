@@ -2,7 +2,11 @@ package app.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -77,6 +81,43 @@ class CupomServiceTest {
 
 		assertEquals(HttpStatus.FORBIDDEN, erro.getStatusCode());
 		verifyNoInteractions(cupomRepository);
+	}
+
+	@Test
+	void deveExcluirCupomLogicamenteParaPreservarHistorico() {
+		Long quiosqueId = 22L;
+		Long cupomId = 7L;
+		Usuario proprietario = mock(Usuario.class);
+		Quiosque quiosque = mock(Quiosque.class);
+		Cupom cupom = new Cupom(
+				TipoCupom.FIXO,
+				quiosque,
+				new BigDecimal("10"),
+				new BigDecimal("50"),
+				null,
+				LocalDateTime.now().plusDays(1),
+				true);
+
+		when(quiosqueRepository.findById(quiosqueId)).thenReturn(Optional.of(quiosque));
+		when(quiosque.pertenceAoProprietario(proprietario)).thenReturn(true);
+		when(cupomRepository.findByIdAndQuiosqueIdAndExcluidoFalse(cupomId, quiosqueId))
+				.thenReturn(Optional.of(cupom));
+
+		cupomService.delete(proprietario, quiosqueId, cupomId);
+
+		assertFalse(cupom.isAtivo());
+		assertTrue(cupom.isExcluido());
+		verify(cupomRepository).save(cupom);
+	}
+
+	@Test
+	void deveDesativarCuponsExpiradosEmLote() {
+		when(cupomRepository.desativarExpirados(any(LocalDateTime.class))).thenReturn(2);
+
+		int quantidade = cupomService.desativarCuponsExpirados();
+
+		assertEquals(2, quantidade);
+		verify(cupomRepository).desativarExpirados(any(LocalDateTime.class));
 	}
 
 	@Test

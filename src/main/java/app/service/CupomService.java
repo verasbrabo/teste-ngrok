@@ -7,6 +7,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import app.DTO.CupomCreateDTO;
@@ -52,7 +53,8 @@ public class CupomService {
 	
 	public List<CupomCreateDTO> findByQuiosque(Long id_quiosque) {
 		
-		List<Cupom> cupons = cupomRepository.findByQuiosqueIdAndAtivoAndDataExpiracaoAfter(id_quiosque, true, LocalDateTime.now());
+		List<Cupom> cupons = cupomRepository.findByQuiosqueIdAndAtivoAndDataExpiracaoAfterAndExcluidoFalse(
+				id_quiosque, true, LocalDateTime.now());
 		
 		return cupons.stream().map(CupomCreateDTO::from).toList();
 	}
@@ -62,7 +64,7 @@ public class CupomService {
 
 		// A administração precisa enxergar inclusive os cupons que já expiraram
 		// ou foram desativados para compreender o histórico do quiosque.
-		return cupomRepository.findByQuiosqueIdOrderByIdDesc(quiosque.getId())
+		return cupomRepository.findByQuiosqueIdAndExcluidoFalseOrderByIdDesc(quiosque.getId())
 				.stream()
 				.map(CupomCreateDTO::from)
 				.toList();
@@ -77,7 +79,7 @@ public class CupomService {
 		findQuiosqueForOwner(administrador, id_quiosque);
 		validarRegras(data);
 		
-		Cupom cupom = this.cupomRepository.findByIdAndQuiosqueId(id, id_quiosque)
+		Cupom cupom = this.cupomRepository.findByIdAndQuiosqueIdAndExcluidoFalse(id, id_quiosque)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cupom não encontrado"));
 		
 		// O PUT substitui todos os dados editáveis com um contrato validado.
@@ -98,7 +100,7 @@ public class CupomService {
 		
 		findQuiosqueForOwner(administrador, id_quiosque);
 		
-		Cupom cupom = this.cupomRepository.findByIdAndQuiosqueId(id, id_quiosque)
+		Cupom cupom = this.cupomRepository.findByIdAndQuiosqueIdAndExcluidoFalse(id, id_quiosque)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cupom não encontrado"));
 		
 		boolean expirou = LocalDateTime.now().isAfter(cupom.getDataExpiracao());
@@ -112,6 +114,24 @@ public class CupomService {
 		
 		
 		return CupomCreateDTO.from(cupomRepository.save(cupom));
+	}
+
+	/** Remove o cupom das telas sem apagar relacionamentos de pedidos antigos. */
+	public void delete(Usuario administrador, Long id_quiosque, Long id) {
+		findQuiosqueForOwner(administrador, id_quiosque);
+
+		Cupom cupom = cupomRepository.findByIdAndQuiosqueIdAndExcluidoFalse(id, id_quiosque)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cupom nao encontrado"));
+
+		cupom.setAtivo(false);
+		cupom.setExcluido(true);
+		cupomRepository.save(cupom);
+	}
+
+	/** Persiste a inativacao dos cupons assim que a validade for alcancada. */
+	@Transactional
+	public int desativarCuponsExpirados() {
+		return cupomRepository.desativarExpirados(LocalDateTime.now());
 	}
 	
 	
