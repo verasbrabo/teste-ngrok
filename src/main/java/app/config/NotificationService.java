@@ -12,6 +12,9 @@ import org.springframework.stereotype.Service;
 public class NotificationService {
 	@Async
 	public void sendNotificationToDevice(NotificationRequestDTO request) {
+        // Usuarios sem token registrado nao podem receber push. O retorno
+        // evita que o Firebase rejeite toda a tentativa por token nulo/vazio.
+        if (request.token() == null || request.token().isBlank()) return;
         
         Notification notification = Notification.builder()
                 .setTitle(request.title())

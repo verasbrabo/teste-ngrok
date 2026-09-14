@@ -1,5 +1,6 @@
 package app.DTO;
 
+import app.enums.StatusProximidadeEntrega;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -10,7 +11,9 @@ public record AtualizarProximidadeDTO(
         @NotNull
         @Min(-120)
         @Max(0)
-        Integer rssiMedio
+        Integer rssiMedio,
+        @NotNull
+        StatusProximidadeEntrega statusProximidade
 ) {
 
 }

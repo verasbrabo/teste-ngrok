@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 //import org.springframework.data.domain.Page;
 //import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -14,6 +15,7 @@ import app.entity.Pedido;
 import app.entity.Quiosque;
 import app.entity.Usuario;
 import app.enums.StatusPedido;
+import jakarta.persistence.LockModeType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -70,6 +72,14 @@ public interface PedidoRepository extends JpaRepository<Pedido, UUID> {
    Optional<Pedido> findByIdAndEntregador(UUID id, Usuario entregador);
    
    Optional<Pedido> findByIdAndQuiosque(UUID id, Quiosque quiosque);
+
+   // Serializa atualizacoes de proximidade do mesmo pedido para impedir que
+   // requisicoes concorrentes gerem duas notificacoes para a mesma faixa.
+   @Lock(LockModeType.PESSIMISTIC_WRITE)
+   @Query("SELECT p FROM Pedido p WHERE p.id = :id AND p.quiosque = :quiosque")
+   Optional<Pedido> findByIdAndQuiosqueForUpdate(
+		   @Param("id") UUID id,
+		   @Param("quiosque") Quiosque quiosque);
    
    @Query(value = """
 		    SELECT

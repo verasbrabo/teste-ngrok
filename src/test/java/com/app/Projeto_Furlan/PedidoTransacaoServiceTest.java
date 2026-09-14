@@ -32,6 +32,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.server.ResponseStatusException;
 
 import app.DTO.ItemPedidoDTO;
+import app.DTO.AtualizarProximidadeDTO;
 import app.DTO.MotivoCancelamentoDTO;
 import app.DTO.PedidoDTO;
 import app.DTO.PedidoGetDTO;
@@ -48,6 +49,7 @@ import app.entity.Quiosque;
 import app.entity.Usuario;
 import app.enums.FormaPagamento;
 import app.enums.StatusPedido;
+import app.enums.StatusProximidadeEntrega;
 import app.enums.TipoCupom;
 import app.repository.AcompanhamentoRepository;
 import app.repository.CupomRepository;
@@ -256,6 +258,71 @@ class PedidoTransacaoServiceTest {
 	}
 
 	@Test
+	void deveNotificarClienteSomenteQuandoFaixaDeProximidadeMuda() {
+		Usuario funcionario = mock(Usuario.class);
+		Cliente cliente = cliente();
+		when(cliente.getDeviceToken()).thenReturn("token-cliente");
+		Quiosque quiosque = prepararQuiosque(10L);
+		when(quiosque.usuarioPossuiAcesso(funcionario)).thenReturn(true);
+		Pedido pedido = pedidoEmEntrega(cliente, quiosque);
+		pedido.setStatusProximidadeEntrega(StatusProximidadeEntrega.SINAL_FRACO);
+		when(pedidoRepository.findByIdAndQuiosqueForUpdate(pedido.getId(), quiosque))
+				.thenReturn(Optional.of(pedido));
+		when(pedidoRepository.saveAndFlush(pedido)).thenReturn(pedido);
+
+		TransactionSynchronizationManager.initSynchronization();
+		try {
+			pedidoService.atualizarProximidadeEntrega(
+					pedido.getId(),
+					10L,
+					funcionario,
+					new AtualizarProximidadeDTO(
+							-72, StatusProximidadeEntrega.APROXIMANDO));
+
+			verify(notificationService, never())
+					.sendNotificationToDevice(any(NotificationRequestDTO.class));
+			for (TransactionSynchronization sincronizacao
+					: TransactionSynchronizationManager.getSynchronizations()) {
+				sincronizacao.afterCommit();
+			}
+			verify(notificationService).sendNotificationToDevice(
+					new NotificationRequestDTO(
+							"token-cliente",
+							"Proximidade da entrega",
+							"Seu entregador está se aproximando.",
+							pedido.getId().toString(),
+							"APROXIMANDO",
+							null,
+							"STATUS_PROXIMIDADE"));
+		} finally {
+			TransactionSynchronizationManager.clearSynchronization();
+		}
+	}
+
+	@Test
+	void naoDeveNotificarClienteQuandoFaixaDeProximidadeContinuaIgual() {
+		Usuario funcionario = mock(Usuario.class);
+		Cliente cliente = cliente();
+		Quiosque quiosque = prepararQuiosque(10L);
+		when(quiosque.usuarioPossuiAcesso(funcionario)).thenReturn(true);
+		Pedido pedido = pedidoEmEntrega(cliente, quiosque);
+		pedido.setStatusProximidadeEntrega(StatusProximidadeEntrega.APROXIMANDO);
+		when(pedidoRepository.findByIdAndQuiosqueForUpdate(pedido.getId(), quiosque))
+				.thenReturn(Optional.of(pedido));
+		when(pedidoRepository.saveAndFlush(pedido)).thenReturn(pedido);
+
+		pedidoService.atualizarProximidadeEntrega(
+				pedido.getId(),
+				10L,
+				funcionario,
+				new AtualizarProximidadeDTO(
+						-70, StatusProximidadeEntrega.APROXIMANDO));
+
+		assertEquals(-70, pedido.getRssiMedioEntrega());
+		verifyNoInteractions(notificationService);
+	}
+
+	@Test
 	void deveDevolverCupomQuandoClienteCancelaPedido() {
 		Cliente cliente = cliente();
 		Quiosque quiosque = prepararQuiosque(10L);
@@ -370,6 +437,22 @@ class PedidoTransacaoServiceTest {
 				UUID.randomUUID());
 		pedido.setId(UUID.randomUUID());
 		pedido.setCupom(cupom);
+		pedido.setPrecisaMaquininha(false);
+		return pedido;
+	}
+
+	private Pedido pedidoEmEntrega(Cliente cliente, Quiosque quiosque) {
+		Pedido pedido = new Pedido(
+				LocalDateTime.now(),
+				null,
+				cliente,
+				quiosque,
+				new java.util.ArrayList<>(),
+				StatusPedido.EM_ENTREGA,
+				UUID.randomUUID());
+		pedido.setId(UUID.randomUUID());
+		pedido.setSubTotal(BigDecimal.TEN);
+		pedido.setValorTotal(BigDecimal.TEN);
 		pedido.setPrecisaMaquininha(false);
 		return pedido;
 	}

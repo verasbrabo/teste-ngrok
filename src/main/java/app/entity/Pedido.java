@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 import app.enums.FormaPagamento;
 import app.enums.StatusPagamento;
 import app.enums.StatusPedido;
+import app.enums.StatusProximidadeEntrega;
 import app.enums.UserRole;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -113,6 +114,13 @@ public class Pedido {
     // a tela do entregador funciona localmente mesmo sem persistir esse valor.
     @Column(name = "RssiMedioEntrega", nullable = true)
     private Integer rssiMedioEntrega;
+
+    // Ultima faixa estabilizada recebida do quiosque. O campo e opcional para
+    // manter compatibilidade com pedidos criados antes desta funcionalidade.
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "StatusProximidadeEntrega", length = 24, nullable = true)
+    private StatusProximidadeEntrega statusProximidadeEntrega;
     
     // Forma escolhida pelo cliente antes de criar o pedido. Representa a
     // intencao de pagamento na entrega, nao pagamento online confirmado.
@@ -260,6 +268,14 @@ public class Pedido {
 
     public void setRssiMedioEntrega(Integer rssiMedioEntrega) {
         this.rssiMedioEntrega = rssiMedioEntrega;
+    }
+
+    public StatusProximidadeEntrega getStatusProximidadeEntrega() {
+        return statusProximidadeEntrega;
+    }
+
+    public void setStatusProximidadeEntrega(StatusProximidadeEntrega statusProximidadeEntrega) {
+        this.statusProximidadeEntrega = statusProximidadeEntrega;
     }
 
 

@@ -54,6 +54,7 @@ import app.entity.Usuario;
 import app.enums.FormaPagamento;
 import app.enums.StatusPagamento;
 import app.enums.StatusPedido;
+import app.enums.StatusProximidadeEntrega;
 import app.enums.UserRole;
 import app.repository.AcompanhamentoRepository;
 import app.repository.CupomRepository;
@@ -685,16 +686,43 @@ public class PedidoService {
 			AtualizarProximidadeDTO data) {
 
 		Quiosque quiosque = findQuiosqueForUser(funcionario, id_quiosque);
-		Pedido pedido = pedidoRepository.findByIdAndQuiosque(id, quiosque)
+		Pedido pedido = pedidoRepository.findByIdAndQuiosqueForUpdate(id, quiosque)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido nÃ£o encontrado"));
 
 		if (pedido.getStatus() != StatusPedido.EM_ENTREGA)
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Pedido nÃ£o estÃ¡ em entrega");
 
-		// RSSI publicado pelo app do quiosque. E dado temporario de proximidade;
-		// a confirmacao real da entrega continua sendo feita por codigo.
+		StatusProximidadeEntrega statusAnterior = pedido.getStatusProximidadeEntrega();
+		// A API persiste a leitura e a faixa calculada pelo quiosque. A confirmacao
+		// real da entrega continua sendo feita pelo codigo do pedido.
 		pedido.setRssiMedioEntrega(data.rssiMedio());
-		return PedidoGetDTO.from(pedidoRepository.save(pedido));
+		pedido.setStatusProximidadeEntrega(data.statusProximidade());
+		Pedido pedidoSalvo = pedidoRepository.saveAndFlush(pedido);
+
+		// A mesma faixa pode chegar varias vezes como telemetria; somente uma
+		// transicao efetiva gera push para o cliente.
+		if (statusAnterior != data.statusProximidade()) {
+			notificarClienteAposCommit(NotificationRequestDTO.proximidade(pedidoSalvo));
+		}
+		return PedidoGetDTO.from(pedidoSalvo);
+	}
+
+	/**
+	 * Aguarda o commit para nao avisar o cliente sobre um estado que possa ser
+	 * revertido pela transacao.
+	 */
+	private void notificarClienteAposCommit(NotificationRequestDTO notificacao) {
+		Runnable enviar = () -> notificationService.sendNotificationToDevice(notificacao);
+		if (TransactionSynchronizationManager.isSynchronizationActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					enviar.run();
+				}
+			});
+			return;
+		}
+		enviar.run();
 	}
 	
 	@Transactional

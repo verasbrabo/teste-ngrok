@@ -45,6 +45,21 @@ public record NotificationRequestDTO(
 	}
 
 	/**
+	 * Notificacao criada somente quando a faixa estabilizada de proximidade
+	 * muda durante a entrega.
+	 */
+	public static NotificationRequestDTO proximidade(Pedido p) {
+		return new NotificationRequestDTO(
+				p.getCliente().getDeviceToken(),
+				"Proximidade da entrega",
+				p.getStatusProximidadeEntrega().getMensagem(),
+				p.getId().toString(),
+				p.getStatusProximidadeEntrega().name(),
+				null,
+				"STATUS_PROXIMIDADE");
+	}
+
+	/**
 	 * Notificação para o app do quiosque (novo pedido recebido). Não se refere
 	 * a uma mudança de status do pedido do cliente.
 	 */
