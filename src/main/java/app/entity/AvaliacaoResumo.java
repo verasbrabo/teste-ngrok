@@ -18,7 +18,7 @@ public class AvaliacaoResumo{
 	private Long somaNota, totalAvaliacoes;
 	
 	public BigDecimal getMedia() {
-	    if (somaNota == null || totalAvaliacoes == null || totalAvaliacoes == 0) {
+		if (somaNota == null || somaNota == 0 || totalAvaliacoes == null || totalAvaliacoes == 0) {
 	        return null;
 	    }
 

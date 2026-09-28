@@ -78,7 +78,7 @@ public abstract class Usuario implements UserDetails {
 	private LocalDateTime ultimoLogin;
 	
 	@OneToOne
-	@JoinColumn(name = "imagem_id")
+	@JoinColumn(name = "id_imagem")
 	private Imagem imagem;
 	
 	@Enumerated(EnumType.STRING)

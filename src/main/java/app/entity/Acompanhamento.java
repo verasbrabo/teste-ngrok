@@ -32,7 +32,7 @@ public class Acompanhamento {
     private List<Item> items;
 	
 	@ManyToOne
-    @JoinColumn(name = "quiosque_id", nullable = false)
+    @JoinColumn(name = "id_quiosque", nullable = false)
     private Quiosque quiosque;
 
 	public Acompanhamento(String nome, BigDecimal valor) {

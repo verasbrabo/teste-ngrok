@@ -29,8 +29,10 @@ import app.DTO.TrocarSenhaDTO;
 import app.DTO.UpdateMeDTO;
 import app.DTO.UsuarioResponseDTO;
 import app.auth.DTO.AuthenticationDTO;
+import app.auth.DTO.EmailDTO;
 import app.auth.DTO.LoginResponseDTO;
 import app.auth.DTO.RegisterDTO;
+import app.auth.DTO.ResetPasswordDTO;
 import app.config.TokenService;
 import app.entity.Funcionario;
 import app.entity.Usuario;
@@ -105,7 +107,24 @@ public class AuthController {
 	public ResponseEntity<UsuarioResponseDTO> register(@RequestBody @Valid RegisterDTO data){		
 		Usuario user = authService.register(data);
 		return ResponseEntity.status(HttpStatus.CREATED).body(UsuarioResponseDTO.from(user));
-	}	
+	}
+	
+	@PostMapping("/auth/forgot-password")
+	public ResponseEntity<Void> esqueceuSenha(
+			@RequestBody @Valid EmailDTO data){
+		authService.forgotPassword(data);
+		return ResponseEntity.status(HttpStatus.OK).build();
+	}
+	
+	@PostMapping("/auth/reset-password")
+	public ResponseEntity<Void> recuperarSenha(
+			@RequestParam String token,
+			@RequestBody @Valid ResetPasswordDTO data){
+		
+		this.authService.resetPassword(token, data);
+		return ResponseEntity.status(HttpStatus.OK).build();
+	}
+	
 	
 	@GetMapping("/me")
 	@PreAuthorize("hasAnyRole('FUNCIONARIO','CLIENTE')")

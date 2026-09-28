@@ -1,9 +1,11 @@
 package app.auth;
 
+import java.security.SecureRandom;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,16 +24,21 @@ import app.DTO.RegisterFuncionarioDTO;
 import app.DTO.TrocarSenhaDTO;
 import app.DTO.UpdateMeDTO;
 import app.DTO.UsuarioResponseDTO;
+import app.auth.DTO.EmailDTO;
 import app.auth.DTO.RegisterAdminResponseDTO;
 import app.auth.DTO.RegisterDTO;
+import app.auth.DTO.ResetPasswordDTO;
 import app.entity.Cliente;
 import app.entity.Funcionario;
 import app.entity.Quiosque;
+import app.entity.RecoveryToken;
 import app.entity.Usuario;
 import app.enums.StatusConta;
 import app.enums.UserRole;
 import app.repository.PedidoRepository;
 import app.repository.QuiosqueRepository;
+import app.repository.RecoveryTokenRepository;
+import app.service.EmailService;
 import app.service.ImageService;
 import app.service.SenhaCriptoService;
 import jakarta.transaction.Transactional;
@@ -53,15 +60,23 @@ public class AuthService implements UserDetailsService{
 	private PedidoRepository pedidoRepository;
 	@Autowired
 	private SenhaCriptoService senhaCriptoService;
+	@Autowired
+	private EmailService emailService;
+	@Autowired
+	private RecoveryTokenRepository recoveryTokenRepository;
 	
 	@Override
 	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-		return usuarioRepository.findByLogin(username);
+		Optional<UserDetails> user = usuarioRepository.findByLogin(username);		
+			return user
+					.orElseThrow(() -> new RuntimeException("Erro no login"));
+		
 	}
 	
 	public Usuario register(RegisterDTO data){
-	    if(usuarioRepository.findByLogin(data.email()) != null)
-	        throw new RuntimeException("Usuário já cadastrado");
+		Optional<UserDetails> usuario = usuarioRepository.findByLogin(data.email());
+	    if(usuario.isPresent())
+	        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Erro no cadastro");  //Usuário já cadastrado
 	    if(!data.role().equals(UserRole.PROPRIETARIO) && !data.role().equals(UserRole.CLIENTE)) {
 	    	throw new ResponseStatusException(
 	                HttpStatus.UNAUTHORIZED, "Apenas gerentes podem cadastrar funcionarios");
@@ -134,6 +149,78 @@ public class AuthService implements UserDetailsService{
 			count++;
 		return username + count;
 	}
+	
+	public void forgotPassword(EmailDTO data) {
+		
+		Boolean naoPassou5Minutos = recoveryTokenRepository.
+				existsByUsuarioLoginAndEnviadoAfterAndExpiracaoAfter(data.email(), LocalDateTime.now().minusMinutes(5), LocalDateTime.now());
+		
+		if(naoPassou5Minutos) 
+			return;
+		
+		
+		Optional<UserDetails> user = usuarioRepository.findByLogin(data.email());
+		
+		if(!user.isPresent())
+			return;
+					
+		Usuario usuario = (Usuario) user.get();
+
+		String codigo = gerarCodigo(4);
+		
+		RecoveryToken token = new RecoveryToken();
+		
+		
+		
+		token.setToken(codigo);
+		token.setUsuario(usuario);
+		token.setExpiracao(LocalDateTime.now().plusMinutes(30));
+		token.setEnviado(LocalDateTime.now());
+		
+		this.recoveryTokenRepository.save(token);
+		
+		emailService.enviarEmail(data.email(), "Código de recuperação da sua conta", codigo);
+	}
+	
+	@Transactional
+	public void resetPassword(String token, ResetPasswordDTO data) {
+
+       RecoveryToken recoveryToken =
+    		   recoveryTokenRepository.findByTokenAndExpiracaoAfter(token, LocalDateTime.now())
+                        .orElseThrow(() ->
+                                new RuntimeException("Token inválido"));
+
+        if (recoveryToken.getExpiracao().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Token expirado");
+        }
+
+        Usuario usuario = recoveryToken.getUsuario();
+
+        usuario.setSenhaHash(passwordEncoder.encode(data.password()));
+
+        usuarioRepository.save(usuario);
+
+        recoveryTokenRepository.delete(recoveryToken);
+    }
+	
+	@Transactional
+	public void deletarTokensObsoletos() {
+		recoveryTokenRepository.deleteByExpiracaoBefore(LocalDateTime.now());
+	}
+	
+	
+	private String gerarCodigo(int tamanho) { 
+		String CARACTERES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+	    SecureRandom random = new SecureRandom();
+	    StringBuilder codigo = new StringBuilder(tamanho);
+	    for (int i = 0; i < tamanho; i++) {
+            int index = random.nextInt(CARACTERES.length());
+            codigo.append(CARACTERES.charAt(index));
+	    }
+
+        return codigo.toString();
+	}
+	
 	
 	private String gerarUsername(String nomeCompleto, String codigoQuiosque) {
 		String[] partes = nomeCompleto.trim().split("\\s+");

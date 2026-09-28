@@ -48,7 +48,7 @@ public class Categoria {
 	private List<Item> itens = new ArrayList<>();
 	
 	@ManyToOne
-	@JoinColumn(name="idQuiosque", nullable = false)
+	@JoinColumn(name="id_quiosque", nullable = false)
 	private Quiosque quiosque;		
 	
 	public void addItem(Item item) {

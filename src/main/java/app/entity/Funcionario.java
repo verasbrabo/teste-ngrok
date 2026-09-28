@@ -22,7 +22,7 @@ public class Funcionario extends Usuario{
 	private LocalTime fimTurno;
 
 	@ManyToOne(optional = true)
-	@JoinColumn(name = "quiosque_id", nullable = true)
+	@JoinColumn(name = "id_quiosque", nullable = true)
 	private Quiosque quiosque;
 	
 	@OneToMany(mappedBy = "proprietario")

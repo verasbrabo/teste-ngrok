@@ -1,6 +1,7 @@
 package app.config;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,10 +36,14 @@ public class SecurityFilter extends OncePerRequestFilter{
 			var login = tokenService.validateToken(token);
 			if(login.equals(""))
 				throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
-			UserDetails user = userRepository.findByLogin(login);
 			
-			var authentication = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
-			SecurityContextHolder.getContext().setAuthentication(authentication);
+			Optional<UserDetails> user = userRepository.findByLogin(login);	
+			
+			if(user.isPresent()) {
+				
+				var authentication = new UsernamePasswordAuthenticationToken(user.get(), null, user.get().getAuthorities());
+				SecurityContextHolder.getContext().setAuthentication(authentication);
+			}
 		}
 		filterChain.doFilter(request, response);
 		
