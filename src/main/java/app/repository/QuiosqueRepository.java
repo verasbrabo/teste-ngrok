@@ -46,12 +46,14 @@ public interface QuiosqueRepository extends JpaRepository<Quiosque, Long> {
 	@Query("""
 		    SELECT
 		        p.nota AS nota,
-		        p.comentario AS comentario,
-		        c.nome AS nomeCliente
+		        p.comentario AS comentario
 		    FROM Pedido p
-		    JOIN p.cliente c
 		    WHERE p.quiosque.id = :quiosqueId
+		      AND p.status = app.enums.StatusPedido.AVALIADO
 		      AND p.nota IS NOT NULL
+		      AND p.comentario IS NOT NULL
+		      AND TRIM(p.comentario) <> ''
+		    ORDER BY p.dataHoraEntrega DESC
 		""")
 	    List<AvaliacaoProjection> buscarAvaliacoesDoRestaurante(
 	        @Param("quiosqueId") Long quiosqueid

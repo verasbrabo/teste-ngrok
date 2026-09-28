@@ -66,6 +66,8 @@ public record PedidoGetDTO(
 	    String motivo,
 	    // Nota da avaliação do cliente (1..5); nula enquanto não avaliado.
 	    Integer nota,
+	    // Comentário privado do pedido, visível ao próprio cliente no histórico.
+	    String comentario,
 	    @NotNull
 	    boolean interno)
 {
@@ -108,6 +110,7 @@ public record PedidoGetDTO(
 	        p.getStatus(),
 	        p.getMotivoCancel(),
 	        p.getNota(),
+	        p.getComentario(),
 	        p.isInterno()
 	    );
 	}

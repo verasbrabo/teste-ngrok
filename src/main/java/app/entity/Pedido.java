@@ -217,23 +217,26 @@ public class Pedido {
 	 }
 	 
 	 public void avaliar(int nota) {
-		 
-		 if(nota >= 1 && nota <= 5 && this.getStatus().equals(StatusPedido.FINALIZADO)) {
-			 this.nota = nota;
-			 this.status = StatusPedido.AVALIADO;
-		 }
+		 avaliar(nota, null);
 	 }
 	 
 	public void avaliar(int nota, String comentario) {
-			 
-			 if(nota >= 1 && nota <= 5 && this.getStatus().equals(StatusPedido.FINALIZADO)
-					 && !possuiLink(comentario) 
-					 ) {
-				 this.comentario = comentario;
-				 this.nota = nota;
-				 this.status = StatusPedido.AVALIADO;
-			 }
-		 }
+		if (nota < 1 || nota > 5 || this.getStatus() != StatusPedido.FINALIZADO) {
+			return;
+		}
+
+		String comentarioNormalizado = comentario == null ? null : comentario.trim();
+		if (comentarioNormalizado != null && comentarioNormalizado.isBlank()) {
+			comentarioNormalizado = null;
+		}
+		if (possuiLink(comentarioNormalizado)) {
+			return;
+		}
+
+		this.comentario = comentarioNormalizado;
+		this.nota = nota;
+		this.status = StatusPedido.AVALIADO;
+	}
 	 
 	public static boolean possuiLink(String texto) {
 	    if (texto == null || texto.isBlank()) {

@@ -827,29 +827,36 @@ public class PedidoService {
 	public String avaliarPedido(Usuario usuario, UUID id, AvaliarDTO data) {
 		Pedido pedido = pedidoRepository.findByClienteAndId(usuario, id)
 				 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Pedido não encontrado")));
-		
+
 		if(!usuario.getRole().equals(UserRole.CLIENTE)) 
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Apenas usuarios não relacionados ao quiosque podem avaliar o pedido");
-		
-		if (data.comentario() != null && !data.comentario().isBlank()) {
-		    pedido.avaliar(data.nota(), data.comentario());
-		} else {
-		    pedido.avaliar(data.nota());
+
+		// A média não pode ser incrementada novamente para um pedido já avaliado.
+		if (pedido.getStatus() != StatusPedido.FINALIZADO) {
+			throw new ResponseStatusException(
+					HttpStatus.CONFLICT,
+					"Pedido não está disponível para avaliação");
 		}
-		
-		if(pedido.getNota() == null) {	
+
+		String comentario = data.comentario() == null
+				? null
+				: data.comentario().trim();
+		if (comentario != null && comentario.isBlank()) comentario = null;
+		if (Pedido.possuiLink(comentario)) {
+			throw new ResponseStatusException(
+					HttpStatus.BAD_REQUEST,
+					"Comentário não pode conter links");
+		}
+
+		pedido.avaliar(data.nota(), comentario);
+
+		if(pedido.getNota() == null) {
 			throw new ResponseStatusException(
 				    HttpStatus.BAD_REQUEST,
 				    "Valor invalido"
 				);
 		}
-		if(!data.comentario().equals(pedido.getComentario())) {	
-			throw new ResponseStatusException(
-				    HttpStatus.BAD_REQUEST,
-				    "Comentario invalido"
-				);
-		}
-		
+
 		Quiosque q = pedido.getQuiosque();
 		
 		q.addAvaliacao(data.nota());
