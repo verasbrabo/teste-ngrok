@@ -29,11 +29,11 @@ public class ItemPedido {
 	private BigDecimal valorUnit, valorAcomp, subTotal;
 	
 	@ManyToOne
-	@JoinColumn(name="idItem")
+	@JoinColumn(name="id_item")
 	private Item item;
 	
 	@ManyToOne
-	@JoinColumn(name="idPedido")
+	@JoinColumn(name="id_pedido")
 	private Pedido pedido;
 	
 	@ManyToMany

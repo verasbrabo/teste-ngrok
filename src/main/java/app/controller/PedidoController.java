@@ -30,6 +30,7 @@ import app.DTO.MotivoCancelamentoDTO;
 import app.DTO.PedidoCreateResponseDTO;
 import app.DTO.ValidarCodigoDTO;
 import app.entity.Cliente;
+import app.entity.Funcionario;
 import app.entity.Pedido;
 import app.entity.Usuario;
 import app.enums.StatusPedido;
@@ -190,7 +191,7 @@ public class PedidoController {
 	@PostMapping("/quiosques/{id_quiosque}/pedidos/{id}/entregador")
 	@PreAuthorize("hasRole('FUNCIONARIO')")
 	public ResponseEntity<PedidoGetDTO> entregadorPedido(
-			@AuthenticationPrincipal Usuario admin,
+			@AuthenticationPrincipal Funcionario admin,
 			@PathVariable Long id_quiosque,
 			@PathVariable UUID id) {
 		

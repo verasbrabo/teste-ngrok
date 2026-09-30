@@ -73,11 +73,11 @@ public class Quiosque {
 	private String cnpj;
 	
 	@ManyToOne
-	@JoinColumn(name = "proprietario_id", nullable = false)
+	@JoinColumn(name = "id_proprietario", nullable = false)
 	private Funcionario proprietario;
 
 	@OneToOne
-	@JoinColumn(name = "imagem_id")
+	@JoinColumn(name = "id_imagem")
 	private Imagem imagem;
 	
 	@OneToMany(mappedBy = "quiosque")

@@ -61,10 +61,10 @@ public class Item {
 	private String ingredientes;
 	
 	@OneToOne
-	@JoinColumn(name = "imagem_id")
+	@JoinColumn(name = "id_imagem")
 	private Imagem imagem;
 	@ManyToOne
-	@JoinColumn(name="idCategoria", nullable = false)
+	@JoinColumn(name="id_categoria", nullable = false)
 	private Categoria categoria;	
 	
 	@OneToMany(mappedBy = "item")
@@ -73,8 +73,8 @@ public class Item {
 	@ManyToMany
 	@JoinTable(
 		        name = "item_acompanhamento",
-		        joinColumns = @JoinColumn(name = "item_id"),
-		        inverseJoinColumns = @JoinColumn(name = "acompanhamento_id")
+		        joinColumns = @JoinColumn(name = "id_item"),
+		        inverseJoinColumns = @JoinColumn(name = "id_acompanhamento")
 		      )
     private List<Acompanhamento> acompanhamentos;
 	

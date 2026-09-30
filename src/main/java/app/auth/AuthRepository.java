@@ -19,7 +19,7 @@ public interface AuthRepository extends JpaRepository<Usuario, Long>{
 	
 	boolean existsByLoginAndRole(String login, String role);
 	
-	UserDetails findByLogin(String login);
+	Optional<UserDetails> findByLogin(String login);
 	// UserDetails findByPublicId(UUID id);
 	Optional<Funcionario> findByQuiosqueAndId(Quiosque quiosque, Long id);
 	

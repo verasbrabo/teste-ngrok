@@ -81,19 +81,19 @@ public class Pedido {
 	private Cupom cupom;
 	
 	@ManyToOne
-	@JoinColumn(name = "idCliente")
+	@JoinColumn(name = "id_cliente")
 	private Usuario cliente;
 	
 	@ManyToOne
-	@JoinColumn(name = "idQuiosque")
+	@JoinColumn(name = "id_quiosque")
 	private Quiosque quiosque;
 	
 	@OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL)
 	private List<ItemPedido> itemPedidos;
 	
 	@ManyToOne
-	@JoinColumn(name = "idEntregador")
-	private Usuario entregador;
+	@JoinColumn(name = "id_entregador")
+	private Funcionario entregador;
 	
 	@Enumerated(EnumType.STRING)
 	@JdbcTypeCode(SqlTypes.VARCHAR)
@@ -102,17 +102,17 @@ public class Pedido {
 
     // UUID persistente do aparelho do cliente. O app do cliente anuncia esse
     // valor por BLE, e o app do quiosque usa o mesmo UUID para filtrar o scan.
-    @Column (name = "IdDevice", nullable = true)
+    @Column (name = "id_device", nullable = true)
     private UUID aparelhoId;
 
     // UUID persistente do aparelho do entregador que saiu com o pedido.
     // Serve para auditoria/identificacao do aparelho, nao para o scan principal.
-    @Column(name = "IdDeviceEntregador", nullable = true)
+    @Column(name = "id_device_entregador", nullable = true)
     private UUID aparelhoEntregadorId;
 
     // RSSI medio calculado pelo quiosque durante a aproximacao. Campo opcional:
     // a tela do entregador funciona localmente mesmo sem persistir esse valor.
-    @Column(name = "RssiMedioEntrega", nullable = true)
+    @Column(name = "rssi_medio_entrega", nullable = true)
     private Integer rssiMedioEntrega;
 
     // Ultima faixa estabilizada recebida do quiosque. O campo e opcional para
@@ -399,11 +399,11 @@ public class Pedido {
 		 this.itemPedidos = itemPedidos;
 	 }
 
-	 public Usuario getEntregador() {
+	 public Funcionario getEntregador() {
 		 return entregador;
 	 }
 
-	 public void setEntregador(Usuario entregador) {
+	 public void setEntregador(Funcionario entregador) {
 		 this.entregador = entregador;
 	 }
 
@@ -417,7 +417,7 @@ public class Pedido {
 
 	 public Pedido(UUID id, BigDecimal subTotal, BigDecimal desconto, BigDecimal valorTotal, LocalDateTime dataHoraPedido,
 			LocalDateTime dataHoraEntrega, Long tempoEstimado, Coordenada coordenada, String codigoEntrega, Integer nota,
-			String motivoCancel, Usuario cliente, Quiosque quiosque, List<ItemPedido> itemPedidos, Usuario entregador,
+			String motivoCancel, Usuario cliente, Quiosque quiosque, List<ItemPedido> itemPedidos, Funcionario entregador,
 			StatusPedido status) {
 		super();
 		this.id = id;

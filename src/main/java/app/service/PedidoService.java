@@ -46,6 +46,7 @@ import app.entity.Cliente;
 import app.entity.Coordenada;
 import app.entity.Cupom;
 import app.entity.CupomCliente;
+import app.entity.Funcionario;
 import app.entity.Item;
 import app.entity.ItemPedido;
 import app.entity.Pedido;
@@ -726,7 +727,7 @@ public class PedidoService {
 	}
 	
 	@Transactional
-	public PedidoGetDTO entregadorPedido(Usuario entregador, Long id_quiosque, UUID id) {
+	public PedidoGetDTO entregadorPedido(Funcionario entregador, Long id_quiosque, UUID id) {
 		Quiosque quiosque = findQuiosqueForUser(entregador, id_quiosque);	
 		
 		boolean possuiEntregasAtivas = this.pedidoRepository.existsByEntregadorIdAndStatusNotIn(entregador.getId(), StatusPedido.STATUS_FINALIZADOS);

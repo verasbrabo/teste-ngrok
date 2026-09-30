@@ -16,7 +16,7 @@ import jakarta.persistence.UniqueConstraint;
     uniqueConstraints = {
         @UniqueConstraint(
             name = "uk_cupom_cliente",
-            columnNames = {"cupom_id", "cliente_id"}
+            columnNames = {"id_cupom", "id_cliente"}
         )
     }
 )
@@ -27,11 +27,11 @@ public class CupomCliente {
     private Long id;
 
     @ManyToOne(optional = false)
-    @JoinColumn(name = "cupom_id", nullable = false)
+    @JoinColumn(name = "id_cupom", nullable = false)
     private Cupom cupom;
 
     @ManyToOne(optional = false)
-    @JoinColumn(name = "cliente_id", nullable = false)
+    @JoinColumn(name = "id_cliente", nullable = false)
     private Cliente cliente;
 
 
