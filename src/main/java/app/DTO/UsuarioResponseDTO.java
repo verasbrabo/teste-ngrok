@@ -3,6 +3,7 @@ package app.DTO;
 import java.time.LocalDate;
 import java.util.UUID;
 
+import app.entity.Funcionario;
 import app.entity.Usuario;
 
 public record UsuarioResponseDTO(
@@ -10,6 +11,7 @@ public record UsuarioResponseDTO(
 		String nome,
 		String email,
 		String telefone,
+		String cnpj,
 		LocalDate dataCadastro,
 		String imagem,
 		String role
@@ -21,6 +23,7 @@ public record UsuarioResponseDTO(
 				u.getNome(),
 				u.getLogin(),
 				u.getTelefone(),
+				u instanceof Funcionario funcionario ? funcionario.getCnpj() : null,
 				u.getDataCadastro(),
 				u.getImagem() != null ? u.getImagem().getUrl() : null,
 				u.getRole().getRole()

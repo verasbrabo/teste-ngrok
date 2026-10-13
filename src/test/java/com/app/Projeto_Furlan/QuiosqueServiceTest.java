@@ -40,6 +40,7 @@ class QuiosqueServiceTest {
 		quiosqueVinculado.setNome("Quiosque do funcionário");
 		quiosqueVinculado.setOpeningTime(LocalTime.of(8, 0));
 		quiosqueVinculado.setClosingTime(LocalTime.of(18, 0));
+		quiosqueVinculado.setDistAtendimento(1800L);
 		quiosqueVinculado.setCategorias(List.of());
 
 		// A conta autenticada é de funcionário e possui um vínculo consultável.
@@ -51,6 +52,7 @@ class QuiosqueServiceTest {
 
 		assertEquals(2L, resultado.id());
 		assertEquals("Quiosque do funcionário", resultado.nome());
+		assertEquals(1800L, resultado.distAtendimento());
 		verify(quiosqueRepository).findByFuncionariosContaining(funcionario);
 		// A entidade do SecurityContext não deve fornecer o quiosque diretamente,
 		// pois ela pode estar desconectada da sessão do Hibernate.

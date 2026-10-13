@@ -24,6 +24,7 @@ import app.DTO.AvaliacaoDTO;
 import app.DTO.EmpresaOverviewDTO;
 import app.DTO.QuiosqueCreateDTO;
 import app.DTO.QuiosqueDTO;
+import app.DTO.QuiosqueListaDTO;
 import app.DTO.QuiosqueUpdateDTO;
 import app.DTO.QuiosqueNearByResponseDTO;
 import app.DTO.QuiosqueViewDTO;
@@ -58,6 +59,13 @@ public class QuiosqueController {
 			 return ResponseEntity.status(HttpStatus.CREATED).body(quiosque);						
 	}
 
+	@GetMapping("/meus")
+	@PreAuthorize("hasRole('PROPRIETARIO')")
+	public ResponseEntity<List<QuiosqueListaDTO>> viewProprietario(
+			@AuthenticationPrincipal Funcionario usuario) {
+		return ResponseEntity.ok(this.quiosqueService.findByProprietario(usuario));
+	}
+
 	/**
 	 * Retorna o quiosque vinculado ao gerente ou funcionário autenticado.
 	 */
@@ -73,7 +81,7 @@ public class QuiosqueController {
 	 public ResponseEntity<QuiosqueCreateDTO> update(
 			 @AuthenticationPrincipal Usuario usuario,
 			 @PathVariable Long id_quiosque,
-			 @RequestBody QuiosqueUpdateDTO data){
+			 @RequestBody @Valid QuiosqueUpdateDTO data){
 		 QuiosqueCreateDTO quiosque = this.quiosqueService.update(usuario, id_quiosque, data);
 		 return ResponseEntity.status(HttpStatus.OK).body(quiosque);	
 	 }
@@ -91,9 +99,10 @@ public class QuiosqueController {
 	@GetMapping("/{id_quiosque}")
 	@PreAuthorize("hasAnyRole('FUNCIONARIO')")
 	public ResponseEntity<QuiosqueViewDTO> view(
+			@AuthenticationPrincipal Usuario usuario,
 			@PathVariable Long id_quiosque){
 		return  ResponseEntity.status(HttpStatus.OK).body(
-				this.quiosqueService.findById(id_quiosque));
+				this.quiosqueService.findById(usuario, id_quiosque));
 	}
 	
 	@GetMapping("/{id_quiosque}/overview")

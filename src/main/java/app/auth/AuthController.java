@@ -5,6 +5,7 @@ import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -33,9 +34,11 @@ import app.auth.DTO.EmailDTO;
 import app.auth.DTO.LoginResponseDTO;
 import app.auth.DTO.RegisterDTO;
 import app.auth.DTO.ResetPasswordDTO;
+import app.auth.DTO.RegisterProprietarioDTO;
 import app.config.TokenService;
 import app.entity.Funcionario;
 import app.entity.Usuario;
+import app.enums.TipoConta;
 import app.enums.UserRole;
 import jakarta.validation.Valid;
 
@@ -58,6 +61,7 @@ public class AuthController {
 
 	    return autenticar(
 	        data,
+	        TipoConta.CLIENTE,
 	        Set.of(UserRole.CLIENTE)
 	    );
 	}
@@ -68,6 +72,7 @@ public class AuthController {
 
 	    return autenticar(
 	        data,
+	        TipoConta.QUIOSQUE,
 	        Set.of(
         		UserRole.FUNCIONARIO,
         		UserRole.GERENTE,
@@ -78,11 +83,12 @@ public class AuthController {
 	
 	private ResponseEntity<LoginResponseDTO> autenticar(
 	        AuthenticationDTO data,
+	        TipoConta tipoConta,
 	        Set<UserRole> rolesPermitidas) {
 
 	    var authentication = authenticationManager.authenticate(
 	        new UsernamePasswordAuthenticationToken(
-	            data.email(),
+	            AuthService.identificadorAutenticacao(data.email(), tipoConta),
 	            data.password()
 	        )
 	    );
@@ -101,8 +107,7 @@ public class AuthController {
 	    return ResponseEntity.ok(new LoginResponseDTO(token));
 	}
 	
-	// Sem @PreAuthorize: o cadastro é feito por usuários anônimos (novo
-	// proprietário/cliente). O AuthService restringe os papéis permitidos.
+	// Sem @PreAuthorize: clientes novos ainda não possuem autenticação.
 	@PostMapping("/auth/register")
 	public ResponseEntity<UsuarioResponseDTO> register(@RequestBody @Valid RegisterDTO data){		
 		Usuario user = authService.register(data);
@@ -125,6 +130,17 @@ public class AuthController {
 		return ResponseEntity.status(HttpStatus.OK).build();
 	}
 	
+
+	@PostMapping(
+			value = "/auth/register/proprietario",
+			consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public ResponseEntity<UsuarioResponseDTO> registerProprietario(
+			@RequestPart("dados") @Valid RegisterProprietarioDTO data,
+			@RequestPart(value = "file", required = false) MultipartFile file) {
+		Funcionario proprietario = authService.registerProprietario(data, file);
+		return ResponseEntity.status(HttpStatus.CREATED)
+				.body(UsuarioResponseDTO.from(proprietario));
+	}
 	
 	@GetMapping("/me")
 	@PreAuthorize("hasAnyRole('FUNCIONARIO','CLIENTE')")

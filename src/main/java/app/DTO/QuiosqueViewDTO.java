@@ -16,6 +16,7 @@ public record QuiosqueViewDTO(
 		Long tempoEstimado,
 		String openingTime,
 		String closingTime,
+		Long distAtendimento,
 		List<CategoriaViewDTO> categorias,
 		String imagem,
 		// Endereço/coordenadas, para permitir reexibir/editar a localização.
@@ -43,6 +44,7 @@ public record QuiosqueViewDTO(
 				q.calcularTempoEstimado(),
 				openTime,
 				closeTime,
+				q.getDistAtendimento(),
 				q.getCategorias() != null
 			    	? q.getCategorias().stream()
 			    		.filter(app.entity.Categoria::isAtivo)

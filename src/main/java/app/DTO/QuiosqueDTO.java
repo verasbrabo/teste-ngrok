@@ -18,6 +18,8 @@ public record QuiosqueDTO(
 	    
 	    String cnpj,
 	    
+	    @Min(value = 1, message = "O raio de atendimento deve ser de pelo menos 1 metro")
+	    @Max(value = 2000, message = "O raio de atendimento deve ser de no máximo 2000 metros")
 	    Long distAtendimento,
 	    @NotNull
 		String cep,

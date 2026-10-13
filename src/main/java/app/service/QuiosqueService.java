@@ -22,6 +22,7 @@ import app.DTO.FuncionarioOverviewDTO;
 import app.DTO.PedidoOverviewDTO;
 import app.DTO.QuiosqueCreateDTO;
 import app.DTO.QuiosqueDTO;
+import app.DTO.QuiosqueListaDTO;
 import app.DTO.QuiosqueUpdateDTO;
 import app.DTO.QuiosqueNearByResponseDTO;
 import app.DTO.QuiosqueOverviewDTO;
@@ -70,11 +71,12 @@ public class QuiosqueService {
 	public QuiosqueCreateDTO save(
 			Funcionario usuario,
 			QuiosqueDTO data) {
-		
-		if(data.cnpj() != null && !data.cnpj().isBlank() && !validarCNPJ(data.cnpj()))
-			throw new ResponseStatusException(HttpStatus.CONFLICT, "CNPJ inválido");
-		
-		if(quiosqueRepository.existsByEmailOrCnpj(data.email(), data.cnpj()))
+		String cnpj = usuario.getCnpj();
+		if (cnpj == null || cnpj.isBlank())
+			throw new ResponseStatusException(
+					HttpStatus.BAD_REQUEST, "Proprietário sem CNPJ cadastrado");
+
+		if(quiosqueRepository.existsByEmail(data.email()))
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Dados inválidos");
 		
 		Quiosque q = new Quiosque(
@@ -86,7 +88,7 @@ public class QuiosqueService {
 				new Endereco(data.cep(),data.uf(),data.cidade(), data.referencia(), data.rua(), data.numero()),
 				new AvaliacaoResumo(0L,0L),
 				new Coordenada(data.latitude(), data.longitude()),
-				data.cnpj(),
+				cnpj,
 				usuario,
 				StatusConta.Ativa,
 				0L,
@@ -105,62 +107,12 @@ public class QuiosqueService {
 		
 		Quiosque q = findQuiosqueForUser(usuario, id_quiosque);
 		
-		if(data.cnpj() != null && !data.cnpj().isBlank() && validarCNPJ(data.cnpj())) {
-			q.atualizarDados(data);
-		}
+		q.atualizarDados(data);
 				
 		QuiosqueCreateDTO response = QuiosqueCreateDTO.from(q);
 		return response;
 		
 	}
-	
-	private static boolean validarCNPJ(String cnpj) {
-	    // Remove pontos, barras e hífen
-	    cnpj = cnpj.replaceAll("\\D", "");
-
-	    // CNPJ deve ter exatamente 14 dígitos
-	    if (cnpj.length() != 14) {
-	        return false;
-	    }
-
-	    // Rejeita CNPJs com todos os dígitos iguais
-	    if (cnpj.matches("(\\d)\\1{13}")) {
-	        return false;
-	    }
-
-	    // Pesos para calcular o primeiro dígito
-	    int[] pesos1 = {5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2};
-
-	    // Pesos para calcular o segundo dígito
-	    int[] pesos2 = {6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2};
-
-	    // Primeiro dígito verificador
-	    int soma = 0;
-
-	    for (int i = 0; i < 12; i++) {
-	        soma += Character.getNumericValue(cnpj.charAt(i)) * pesos1[i];
-	    }
-
-	    int resto = soma % 11;
-	    int digito1 = (resto < 2) ? 0 : 11 - resto;
-
-	    // Segundo dígito verificador
-	    soma = 0;
-
-	    for (int i = 0; i < 13; i++) {
-	        soma += Character.getNumericValue(cnpj.charAt(i)) * pesos2[i];
-	    }
-
-	    resto = soma % 11;
-	    int digito2 = (resto < 2) ? 0 : 11 - resto;
-
-	    // Compara os dígitos calculados com os informados
-	    return digito1 == Character.getNumericValue(cnpj.charAt(12))
-	            && digito2 == Character.getNumericValue(cnpj.charAt(13));
-	}
-
-	
-	
 	
 	@Transactional
 	public QuiosqueCreateDTO updateStatus(Usuario usuario, Long id_quiosque) {
@@ -228,6 +180,20 @@ public class QuiosqueService {
 //		return QuiosqueCreateDTO.from(findQuiosqueForUser(usuario, id));
 //	}
 
+	public List<QuiosqueListaDTO> findByProprietario(Funcionario usuario) {
+		if (usuario.getRole() != UserRole.PROPRIETARIO) {
+			throw new ResponseStatusException(
+					HttpStatus.FORBIDDEN, "Apenas proprietários podem listar seus quiosques");
+		}
+
+		return quiosqueRepository.findByProprietario(usuario).stream()
+				.sorted(Comparator.comparing(
+						Quiosque::getNome,
+						Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+				.map(QuiosqueListaDTO::from)
+				.toList();
+	}
+
 	/**
 	 * Carrega o quiosque vinculado ao funcionário dentro de uma transação.
 	 *
@@ -250,6 +216,10 @@ public class QuiosqueService {
 						HttpStatus.NOT_FOUND, "Quiosque não encontrado"));
 
 		return QuiosqueViewDTO.from(quiosque);
+	}
+
+	public QuiosqueViewDTO findById(Usuario usuario, Long idQuiosque) {
+		return QuiosqueViewDTO.from(findQuiosqueForUser(usuario, idQuiosque));
 	}
 
 	public List<QuiosqueNearByResponseDTO> findByDistancia(

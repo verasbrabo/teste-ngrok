@@ -7,6 +7,7 @@ import java.util.List;
 
 import app.enums.StatusConta;
 import app.enums.UserRole;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -16,6 +17,9 @@ import jakarta.validation.constraints.Email;
 
 @Entity
 public class Funcionario extends Usuario{
+
+	@Column(unique = true, length = 14)
+	private String cnpj;
 	
 	private LocalTime inicioTurno;
 	
@@ -58,6 +62,14 @@ public class Funcionario extends Usuario{
 
 	public void setFimTurno(LocalTime fimTurno) {
 		this.fimTurno = fimTurno;
+	}
+
+	public String getCnpj() {
+		return cnpj;
+	}
+
+	public void setCnpj(String cnpj) {
+		this.cnpj = cnpj;
 	}
 
 	public Quiosque getQuiosque() {

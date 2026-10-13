@@ -10,9 +10,8 @@ import jakarta.validation.constraints.NotNull;
 public record RegisterFuncionarioDTO(
 		@NotBlank
 		String nome,
-		@NotBlank
-		@Email
-		String email,
+
+
 		@NotBlank
 		String password,
 		// CPF é opcional: o cadastro de proprietário (quiosque) não o coleta.

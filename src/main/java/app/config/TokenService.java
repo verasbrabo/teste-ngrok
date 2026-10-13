@@ -13,6 +13,7 @@ import com.auth0.jwt.exceptions.JWTCreationException;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 
 import app.entity.Usuario;
+import app.enums.UserRole;
 
 @Service
 public class TokenService {
@@ -37,17 +38,26 @@ public class TokenService {
 	}
 	
 	public String validateToken(String token) {
+		TokenPayload payload = validateTokenPayload(token);
+		return payload == null ? "" : payload.login();
+	}
+
+	/** Valida o JWT e devolve os dois campos que identificam a conta. */
+	public TokenPayload validateTokenPayload(String token) {
 		try {
 			Algorithm algorithm = Algorithm.HMAC256(secret);
-			return JWT.require(algorithm)
+			var jwt = JWT.require(algorithm)
 					.withIssuer("Por-do-Sol")
 					.build()
-					.verify(token)
-					.getSubject();
-		} catch (JWTVerificationException exception) {
-			return "";
+					.verify(token);
+			String role = jwt.getClaim("role").asString();
+			return new TokenPayload(jwt.getSubject(), UserRole.valueOf(role));
+		} catch (JWTVerificationException | IllegalArgumentException | NullPointerException exception) {
+			return null;
 		}
 	}
+
+	public record TokenPayload(String login, UserRole role) {}
 	
 	
 	private Instant genExpirationDate() {

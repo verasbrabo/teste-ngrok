@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,14 +29,17 @@ import app.auth.DTO.EmailDTO;
 import app.auth.DTO.RegisterAdminResponseDTO;
 import app.auth.DTO.RegisterDTO;
 import app.auth.DTO.ResetPasswordDTO;
+import app.auth.DTO.RegisterProprietarioDTO;
 import app.entity.Cliente;
 import app.entity.Funcionario;
 import app.entity.Quiosque;
 import app.entity.RecoveryToken;
 import app.entity.Usuario;
 import app.enums.StatusConta;
+import app.enums.TipoConta;
 import app.enums.UserRole;
 import app.repository.PedidoRepository;
+import app.repository.FuncionarioRepository;
 import app.repository.QuiosqueRepository;
 import app.repository.RecoveryTokenRepository;
 import app.service.EmailService;
@@ -47,9 +51,15 @@ import jakarta.transaction.Transactional;
 
 @Service
 public class AuthService implements UserDetailsService{
+	private static final String PREFIXO_CLIENTE = "CLIENTE::";
+	private static final String PREFIXO_QUIOSQUE = "QUIOSQUE::";
+	private static final Set<UserRole> ROLES_QUIOSQUE = Set.of(
+			UserRole.PROPRIETARIO, UserRole.GERENTE, UserRole.FUNCIONARIO);
 
 	@Autowired
 	private AuthRepository usuarioRepository;
+	@Autowired
+	private FuncionarioRepository funcionarioRepository;
 	@Autowired
 	private PasswordEncoder passwordEncoder;
 	@Autowired
@@ -67,38 +77,91 @@ public class AuthService implements UserDetailsService{
 	
 	@Override
 	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-		Optional<UserDetails> user = usuarioRepository.findByLogin(username);		
-			return user
-					.orElseThrow(() -> new RuntimeException("Erro no login"));
-		
+		if (username.startsWith(PREFIXO_CLIENTE)) {
+			String login = username.substring(PREFIXO_CLIENTE.length());
+			return usuarioRepository.findByLoginAndRole(login, UserRole.CLIENTE)
+					.orElseThrow(() -> new UsernameNotFoundException("Conta não encontrada"));
+		}
+		if (username.startsWith(PREFIXO_QUIOSQUE)) {
+			String login = username.substring(PREFIXO_QUIOSQUE.length());
+			return usuarioRepository.findByLoginAndRoleIn(login, ROLES_QUIOSQUE)
+					.orElseThrow(() -> new UsernameNotFoundException("Conta não encontrada"));
+		}
+		throw new UsernameNotFoundException("Tipo de conta não informado");
+	}
+
+	static String identificadorAutenticacao(String login, TipoConta tipoConta) {
+		String prefixo = tipoConta == TipoConta.CLIENTE
+				? PREFIXO_CLIENTE
+				: PREFIXO_QUIOSQUE;
+		return prefixo + login;
 	}
 	
 	public Usuario register(RegisterDTO data){
-		Optional<UserDetails> usuario = usuarioRepository.findByLogin(data.email());
-	    if(usuario.isPresent())
-	        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Erro no cadastro");  //Usuário já cadastrado
-	    if(!data.role().equals(UserRole.PROPRIETARIO) && !data.role().equals(UserRole.CLIENTE)) {
-	    	throw new ResponseStatusException(
-	                HttpStatus.UNAUTHORIZED, "Apenas gerentes podem cadastrar funcionarios");
-	    }
-	    String encryptedPassword = passwordEncoder.encode(data.password());
-	    Usuario user;
-	    if(data.role().equals(UserRole.CLIENTE))
-	    	user = new Cliente(data.nome(), data.email(), encryptedPassword, normalizarCpf(data.cpf()), data.telefone(),data.role());
-	    else
-	    	user = new Funcionario(data.nome(), data.email(), encryptedPassword, normalizarCpf(data.cpf()), data.telefone(),data.role());
-	    
-	    user.setUltimoLogin(LocalDateTime.now());
-	    
-	    return usuarioRepository.save(user);
+		if(!data.role().equals(UserRole.CLIENTE)) {
+			throw new ResponseStatusException(
+					HttpStatus.BAD_REQUEST,
+					"Proprietários devem usar /auth/register/proprietario");
+		}
+		if (usuarioRepository.existsByLoginAndRole(data.email(), UserRole.CLIENTE))
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "E-mail já cadastrado");
+		if (usuarioRepository.existsByTelefoneAndRole(data.telefone(), UserRole.CLIENTE))
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Telefone já cadastrado");
+
+		String encryptedPassword = passwordEncoder.encode(data.password());
+		Usuario user = new Cliente(data.nome(), data.email(), encryptedPassword,
+				normalizarCpf(data.cpf()), data.telefone(), data.role());
+
+		user.setUltimoLogin(LocalDateTime.now());
+
+		return usuarioRepository.save(user);
+	}
+
+	@Transactional
+	public Funcionario registerProprietario(
+			RegisterProprietarioDTO data,
+			MultipartFile file) {
+		if (usuarioRepository.existsByLoginAndRoleIn(data.email(), ROLES_QUIOSQUE))
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "E-mail já cadastrado");
+		if (usuarioRepository.existsByTelefoneAndRoleIn(data.telefone(), ROLES_QUIOSQUE))
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Telefone já cadastrado");
+
+		String cnpj = normalizarCnpj(data.cnpj());
+		if (cnpj.length() != 14)
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "CNPJ inválido");
+		if (funcionarioRepository.existsByCnpj(cnpj))
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "CNPJ já cadastrado");
+
+		Funcionario proprietario = new Funcionario(
+				data.nome(),
+				data.email(),
+				passwordEncoder.encode(data.password()),
+				"",
+				data.telefone(),
+				UserRole.PROPRIETARIO);
+		proprietario.setCnpj(cnpj);
+		proprietario.setUltimoLogin(LocalDateTime.now());
+		proprietario = usuarioRepository.save(proprietario);
+
+		if (file != null && !file.isEmpty())
+			imageService.uploadImagemUsuario(proprietario, file);
+
+		return proprietario;
+	}
+
+	private static String normalizarCnpj(String cnpj) {
+		return cnpj.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
 	}
 	
 	public RegisterAdminResponseDTO registerFuncionario(Usuario usuario, Long id_quiosque, RegisterFuncionarioDTO data){
-	    if(usuarioRepository.findByLogin(data.email()) != null)
-	        throw new RuntimeException("Usuário já cadastrado");
+	   // if(usuarioRepository.findByLogin(data.email()) != null)
+	    //    throw new RuntimeException("Usuário já cadastrado");
 
 	    Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);
 	    UserRole role = validarCargoCadastro(usuario.getRole(), data.role());
+	    if (usuarioRepository.existsByTelefoneAndRoleIn(data.telefone(), ROLES_QUIOSQUE)) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Telefone já cadastrado");
+	    }
 	    
 	    String senha = UUID.randomUUID().toString().substring(0, 8);
 	    
@@ -151,20 +214,17 @@ public class AuthService implements UserDetailsService{
 	}
 	
 	public void forgotPassword(EmailDTO data) {
-		
-		Boolean naoPassou5Minutos = recoveryTokenRepository.
-				existsByUsuarioLoginAndEnviadoAfterAndExpiracaoAfter(data.email(), LocalDateTime.now().minusMinutes(5), LocalDateTime.now());
-		
-		if(naoPassou5Minutos) 
-			return;
-		
-		
-		Optional<UserDetails> user = usuarioRepository.findByLogin(data.email());
-		
-		if(!user.isPresent())
-			return;
-					
-		Usuario usuario = (Usuario) user.get();
+		Optional<Usuario> user = data.tipoConta() == TipoConta.CLIENTE
+				? usuarioRepository.findByLoginAndRole(data.email(), UserRole.CLIENTE)
+				: usuarioRepository.findByLoginAndRole(data.email(), UserRole.PROPRIETARIO);
+
+		if (user.isEmpty()) return;
+
+		Usuario usuario = user.get();
+		Boolean naoPassou5Minutos = recoveryTokenRepository
+				.existsByUsuarioAndEnviadoAfterAndExpiracaoAfter(
+						usuario, LocalDateTime.now().minusMinutes(5), LocalDateTime.now());
+		if (naoPassou5Minutos) return;
 
 		String codigo = gerarCodigo(4);
 		
@@ -184,9 +244,13 @@ public class AuthService implements UserDetailsService{
 	
 	@Transactional
 	public void resetPassword(String token, ResetPasswordDTO data) {
+		UserRole role = data.tipoConta() == TipoConta.CLIENTE
+				? UserRole.CLIENTE
+				: UserRole.PROPRIETARIO;
 
-       RecoveryToken recoveryToken =
-    		   recoveryTokenRepository.findByTokenAndExpiracaoAfter(token, LocalDateTime.now())
+		RecoveryToken recoveryToken =
+				recoveryTokenRepository.findByTokenAndUsuarioRoleAndExpiracaoAfter(
+						token, role, LocalDateTime.now())
                         .orElseThrow(() ->
                                 new RuntimeException("Token inválido"));
 
@@ -297,11 +361,36 @@ public class AuthService implements UserDetailsService{
 
 	@Transactional
 	public UsuarioResponseDTO putUsuario(Usuario user, UpdateMeDTO data){
-
+		validarDadosUnicos(user, data);
 		user.atualizarPerfil(data);
 		usuarioRepository.save(user);
 		UsuarioResponseDTO response = UsuarioResponseDTO.from(user);
 	    return response;
+	}
+
+	private void validarDadosUnicos(Usuario user, UpdateMeDTO data) {
+		boolean contaCliente = user.getRole() == UserRole.CLIENTE;
+		if (data.email() != null && !data.email().isBlank()
+				&& !data.email().equalsIgnoreCase(user.getLogin())) {
+			boolean emailEmUso = contaCliente
+					? usuarioRepository.existsByLoginAndRoleAndIdNot(
+							data.email(), UserRole.CLIENTE, user.getId())
+					: usuarioRepository.existsByLoginAndRoleInAndIdNot(
+							data.email(), ROLES_QUIOSQUE, user.getId());
+			if (emailEmUso)
+				throw new ResponseStatusException(HttpStatus.CONFLICT, "E-mail já cadastrado");
+		}
+
+		if (data.telefone() != null && !data.telefone().isBlank()
+				&& !data.telefone().equals(user.getTelefone())) {
+			boolean telefoneEmUso = contaCliente
+					? usuarioRepository.existsByTelefoneAndRoleAndIdNot(
+							data.telefone(), UserRole.CLIENTE, user.getId())
+					: usuarioRepository.existsByTelefoneAndRoleInAndIdNot(
+							data.telefone(), ROLES_QUIOSQUE, user.getId());
+			if (telefoneEmUso)
+				throw new ResponseStatusException(HttpStatus.CONFLICT, "Telefone já cadastrado");
+		}
 	}
 	
 	@Transactional

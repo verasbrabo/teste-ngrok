@@ -41,7 +41,7 @@ public interface QuiosqueRepository extends JpaRepository<Quiosque, Long> {
 	
 	List<Quiosque> findByProprietario(Funcionario proprietario);
 	
-	boolean existsByEmailOrCnpj(String email, String cnpj);
+	boolean existsByEmail(String email);
 	
 	@Query("""
 		    SELECT

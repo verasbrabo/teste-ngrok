@@ -1,14 +1,10 @@
 package app.config;
 
 import java.io.IOException;
-import java.util.Optional;
-import java.util.UUID;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.server.ResponseStatusException;
@@ -33,11 +29,11 @@ public class SecurityFilter extends OncePerRequestFilter{
 		var token = this.recoverToken(request);
 		
 		if(token != null) {
-			var login = tokenService.validateToken(token);
-			if(login.equals(""))
+			var payload = tokenService.validateTokenPayload(token);
+			if(payload == null)
 				throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
 			
-			Optional<UserDetails> user = userRepository.findByLogin(login);	
+			var user = userRepository.findByLoginAndRole(payload.login(), payload.role());
 			
 			if(user.isPresent()) {
 				

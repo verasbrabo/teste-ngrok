@@ -319,16 +319,24 @@ public class PedidoService {
 	}
 	
 	private void configurarPagamento(Pedido pedido, PedidoDTO data) {
-		FormaPagamento formaPagamento = data.formaPagamento();
-		// O cliente nao pode criar pedido sem orientar como pretende pagar na
-		// entrega.
+		configurarPagamento(pedido, data.formaPagamento(), data.valorPagoCliente());
+	}
+
+	/**
+	 * Aplica a mesma regra de pagamento aos pedidos externos e de balcão.
+	 */
+	private void configurarPagamento(
+			Pedido pedido,
+			FormaPagamento formaPagamento,
+			BigDecimal valorPagoCliente) {
+		// Nenhum pedido pode ser criado sem informar como será pago.
 		if (formaPagamento == null) {
 			throw new ResponseStatusException(
 					HttpStatus.BAD_REQUEST,
 					"Forma de pagamento obrigatoria");
 		}
 
-		// Todo pagamento nasce pendente porque o recebimento acontece na entrega.
+		// Todo pagamento nasce pendente até o quiosque confirmar o recebimento.
 		pedido.setFormaPagamento(formaPagamento);
 		pedido.setStatusPagamento(StatusPagamento.PENDENTE);
 		pedido.setPrecisaMaquininha(formaPagamento.precisaMaquininha());
@@ -341,9 +349,8 @@ public class PedidoService {
 			return;
 		}
 
-		BigDecimal valorPagoCliente = data.valorPagoCliente();
-		// Para dinheiro, o app precisa informar quanto o cliente vai entregar
-		// para que o quiosque prepare o troco.
+		// Para dinheiro, o app informa quanto o cliente entregou para que o troco
+		// oficial seja calculado a partir do total calculado pelo servidor.
 		if (valorPagoCliente == null) {
 			throw new ResponseStatusException(
 					HttpStatus.BAD_REQUEST,
@@ -475,6 +482,8 @@ public class PedidoService {
 
 		pedido.calcularValorSubTotal();
 		pedido.calcularValorTotal();
+		// O total precisa estar calculado antes da validação do dinheiro e troco.
+		configurarPagamento(pedido, data.formaPagamento(), data.valorPagoCliente());
 		pedido.setTempoEstimado(quiosque.calcularTempoEstimado());
 
 		return PedidoGetDTO.from(pedidoRepository.save(pedido));

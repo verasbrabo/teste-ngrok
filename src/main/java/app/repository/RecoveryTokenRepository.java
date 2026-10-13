@@ -13,9 +13,11 @@ public interface RecoveryTokenRepository extends JpaRepository<RecoveryToken, Lo
 	
 	Optional<RecoveryToken> findByUsuarioAndTokenAndExpiracaoBefore(Usuario usuario, String token, LocalDateTime expiracao);
 	
-	Optional<RecoveryToken> findByTokenAndExpiracaoAfter(String token, LocalDateTime agora);
-	
-	Boolean existsByUsuarioLoginAndEnviadoAfterAndExpiracaoAfter(String login, LocalDateTime ultimosMinutos, LocalDateTime agora);
+	Optional<RecoveryToken> findByTokenAndUsuarioRoleAndExpiracaoAfter(
+			String token, app.enums.UserRole role, LocalDateTime agora);
+
+	Boolean existsByUsuarioAndEnviadoAfterAndExpiracaoAfter(
+			Usuario usuario, LocalDateTime ultimosMinutos, LocalDateTime agora);
 
 	
 	void deleteByExpiracaoBefore(LocalDateTime agora);

@@ -185,10 +185,6 @@ public class Quiosque {
 		    this.nome = quiosque.nome();
 		}
 		
-		if(quiosque.cnpj() != null) {
-			this.cnpj = quiosque.cnpj();
-		}
-		
 		if (quiosque.openingTime() != null) {
 			this.openingTime = quiosque.openingTime() ;
 		}

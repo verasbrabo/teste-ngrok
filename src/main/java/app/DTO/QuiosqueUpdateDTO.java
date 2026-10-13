@@ -2,6 +2,9 @@ package app.DTO;
 
 import java.time.LocalTime;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+
 /**
  * Corpo de atualização parcial do quiosque (`PUT /quiosques/me`).
  *
@@ -17,6 +20,8 @@ public record QuiosqueUpdateDTO(
 		String cnpj,
 		LocalTime openingTime,
 		LocalTime closingTime,
+		@Min(value = 1, message = "O raio de atendimento deve ser de pelo menos 1 metro")
+		@Max(value = 2000, message = "O raio de atendimento deve ser de no máximo 2000 metros")
 		Long distAtendimento,
 		String cep,
 		String uf,

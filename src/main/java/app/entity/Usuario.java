@@ -31,6 +31,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.Email;
 //import jakarta.persistence.PrePersist;
 //import jakarta.persistence.PreUpdate;
@@ -44,6 +46,10 @@ import lombok.Setter;
 //@AllArgsConstructor
 //@NoArgsConstructor
 @Entity
+@Table(uniqueConstraints = {
+		@UniqueConstraint(name = "uk_usuario_login_role", columnNames = {"login", "role"}),
+		@UniqueConstraint(name = "uk_usuario_telefone_role", columnNames = {"telefone", "role"})
+})
 @Inheritance(strategy = InheritanceType.JOINED)
 public abstract class Usuario implements UserDetails {
 
@@ -65,9 +71,9 @@ public abstract class Usuario implements UserDetails {
 	@Column(length = 512)
 	private String senhaCifrada;
 	private String cpf;
-	@Column(nullable = false, unique = true)
+	@Column(nullable = false)
 	private String telefone;
-	@Column(nullable = false, unique = true, updatable = false)
+	@Column(nullable = false, updatable = false)
 	private String login;
 	
 	@Enumerated(EnumType.STRING)
