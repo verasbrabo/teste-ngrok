@@ -1,13 +1,18 @@
 package com.app.Projeto_Furlan;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+import app.ProjetoFurlanApplication;
+
 class ProjetoFurlanApplicationTests {
 
 	@Test
-	void contextLoads() {
+	void deveManterClassePrincipalConfiguradaComoAplicacaoSpringBoot() {
+		assertTrue(ProjetoFurlanApplication.class
+				.isAnnotationPresent(SpringBootApplication.class));
 	}
 
 }
