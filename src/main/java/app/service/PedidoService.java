@@ -107,7 +107,8 @@ public class PedidoService {
 					HttpStatus.BAD_REQUEST,
 					"Pedido não pode ser rejeitado");
 		}
-		pedido.setStatus(StatusPedido.REJEITADO);	
+		pedido.setStatus(StatusPedido.REJEITADO);
+		sincronizarStatusPagamento(pedido);
 		devolverCupomAoCliente(pedido);
 		
 		Cliente cliente = (Cliente) pedido.getCliente();
@@ -161,6 +162,7 @@ public class PedidoService {
 				    "Pedido não pode ser cancelado"
 				);
 		}
+		sincronizarStatusPagamento(pedido);
 		devolverCupomAoCliente(pedido);
 		
 		Cliente cliente = (Cliente) pedido.getCliente();
@@ -365,6 +367,19 @@ public class PedidoService {
 						.setScale(2, RoundingMode.HALF_UP));
 	}
 
+	/** Mantem o estado do pagamento coerente com os estados finais do pedido. */
+	static void sincronizarStatusPagamento(Pedido pedido) {
+		if (pedido.getStatus() == StatusPedido.FINALIZADO) {
+			pedido.setStatusPagamento(StatusPagamento.PAGO);
+			return;
+		}
+
+		if (pedido.getStatus() == StatusPedido.CANCELADO
+				|| pedido.getStatus() == StatusPedido.REJEITADO) {
+			pedido.setStatusPagamento(StatusPagamento.CANCELADO);
+		}
+	}
+
 
 	/**
 	 * Envia uma notificação push para todos os aparelhos do quiosque
@@ -543,6 +558,7 @@ public class PedidoService {
 				    "Pedido não pode ser cancelado"
 				);
 		}
+		sincronizarStatusPagamento(pedido);
 		devolverCupomAoCliente(pedido);
 		
 		    
@@ -663,6 +679,7 @@ public class PedidoService {
 					&& data.idAparelhoEntregador() != null)
 				pedido.setIdAparelhoEntregador(data.idAparelhoEntregador());
 			pedido.setStatus(data.status());
+			sincronizarStatusPagamento(pedido);
 			NotificationRequestDTO dto;
 			if(data.status().equals(StatusPedido.EM_ENTREGA) && pedido.getEntregador() != null) 
 				 dto = NotificationRequestDTO.entregador(pedido);
@@ -797,6 +814,7 @@ public class PedidoService {
 	    
 	    pedido.setDataHoraEntrega(LocalDateTime.now());
 	    pedido.setStatus(StatusPedido.FINALIZADO);
+	    sincronizarStatusPagamento(pedido);
 	    
 	    Quiosque q = pedido.getQuiosque();
 	    

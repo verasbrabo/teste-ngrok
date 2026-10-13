@@ -129,8 +129,8 @@ public class Pedido {
     @Column(length = 20, nullable = true)
     private FormaPagamento formaPagamento;
 
-    // Estado do recebimento. Para o fluxo atual, novos pedidos entram PENDENTE
-    // e o funcionario confirma o pagamento na entrega em evolucao futura.
+    // Estado do recebimento. Novos pedidos entram PENDENTE e os estados finais
+    // do pedido atualizam o pagamento para PAGO ou CANCELADO.
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 20, nullable = true)
