@@ -1,10 +1,12 @@
 package app.DTO;
 
 import java.time.LocalTime;
+import java.util.List;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 public record QuiosqueDTO(
 		 @NotNull
@@ -15,7 +17,8 @@ public record QuiosqueDTO(
 	    LocalTime openingTime,
 	    
 	    LocalTime closingTime,
-	    
+	    @Size(min = 7, max = 7, message = "Os dias de funcionamento devem conter os sete dias da semana")
+	    List<Boolean> diasAtivo,
 	    String cnpj,
 	    
 	    @Min(value = 1, message = "O raio de atendimento deve ser de pelo menos 1 metro")

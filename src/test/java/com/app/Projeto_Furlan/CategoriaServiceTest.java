@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -50,6 +51,19 @@ class CategoriaServiceTest {
 
 		assertEquals(1, resultado.size());
 		assertEquals("Lanches", resultado.get(0).nome());
+	}
+
+	@Test
+	void deveListarComoDisponiveisAsCategoriasNaoUtilizadasOuInativas() {
+		when(quiosqueRepository.existsById(1L)).thenReturn(true);
+		when(categoriaRepository.buscarNomesAtivosPorQuiosqueId(1L))
+				.thenReturn(List.of(Categorias.Lanches, Categorias.Bebidas));
+
+		var resultado = categoriaService.findDisponiveisByQuiosque(1L);
+
+		assertFalse(resultado.contains(Categorias.Lanches));
+		assertFalse(resultado.contains(Categorias.Bebidas));
+		assertTrue(resultado.contains(Categorias.Sobremesas));
 	}
 
 	@Test

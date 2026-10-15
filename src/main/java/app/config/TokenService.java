@@ -12,6 +12,7 @@ import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTCreationException;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 
+import app.entity.Funcionario;
 import app.entity.Usuario;
 import app.enums.UserRole;
 
@@ -28,13 +29,20 @@ public class TokenService {
 					.withIssuer("Por-do-Sol")
 					.withSubject(user.getLogin())
 					.withClaim("role", user.getRole().name())
-					.withClaim("trocarSenha", user.getUltimoLogin() == null)
+					.withClaim("trocarSenha", deveTrocarSenha(user))
 					.withExpiresAt(genExpirationDate())
 					.sign(algorithm);
 			return token;
 		} catch (JWTCreationException exception) {
 			throw new RuntimeException("Error while generating token", exception);
 		}
+	}
+
+	/** A troca obrigatória é exclusiva de contas com senha provisória gerada. */
+	private boolean deveTrocarSenha(Usuario user) {
+		return user instanceof Funcionario funcionario
+				&& (user.getRole() == UserRole.FUNCIONARIO || user.getRole() == UserRole.GERENTE)
+				&& Boolean.TRUE.equals(funcionario.getDeveTrocarSenha());
 	}
 	
 	public String validateToken(String token) {

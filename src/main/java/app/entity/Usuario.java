@@ -165,7 +165,9 @@ public abstract class Usuario implements UserDetails {
 			this.setNome(data.nome());
 		}
 
-		if (data.email() != null && !data.email().isBlank()) {
+		if (data.email() != null && !data.email().isBlank()
+				&& role != UserRole.FUNCIONARIO
+				&& role != UserRole.GERENTE) {
 			this.setLogin(data.email());
 		}
 

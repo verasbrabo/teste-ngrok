@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import app.DTO.CategoriaCreateDTO;
 import app.DTO.CategoriaViewDTO;
 import app.entity.Usuario;
+import app.enums.Categorias;
 import app.service.CategoriaService;
 import jakarta.validation.Valid;
 //@CrossOrigin("http://localhost")
@@ -44,6 +45,12 @@ public class CategoriaController {
 			@PathVariable Long id_quiosque){
 			List<CategoriaViewDTO> categorias =  this.categoriaService.findByQuiosque(id_quiosque);
 			return ResponseEntity.ok(categorias);
+	}
+
+	@GetMapping("/categorias/disponiveis")
+	public ResponseEntity<List<Categorias>> findDisponiveisByQuiosque(
+			@PathVariable Long id_quiosque) {
+		return ResponseEntity.ok(categoriaService.findDisponiveisByQuiosque(id_quiosque));
 	}
 	
 	@PutMapping("/categorias/{id}")

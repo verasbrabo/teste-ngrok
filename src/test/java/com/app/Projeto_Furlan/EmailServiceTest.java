@@ -2,6 +2,7 @@ package app.service;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,21 @@ class EmailServiceTest {
 		assertArrayEquals(new String[] {"cliente@teste.com"}, mensagem.getTo());
 		assertEquals("Recuperacao", mensagem.getSubject());
 		assertEquals("Seu codigo de recuperacao e: AB12", removerAcentos(mensagem.getText()));
+	}
+
+	@Test
+	void deveEnviarLoginESenhaProvisoriaAoFuncionario() {
+		emailService.enviarCredenciaisFuncionario(
+				"funcionario@teste.com", "QUI01funcionario", "Senha123");
+
+		ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+		verify(mailSender).send(captor.capture());
+		SimpleMailMessage mensagem = captor.getValue();
+
+		assertArrayEquals(new String[] {"funcionario@teste.com"}, mensagem.getTo());
+		assertEquals("Seus dados de acesso", mensagem.getSubject());
+		assertTrue(mensagem.getText().contains("Usuário: QUI01funcionario"));
+		assertTrue(mensagem.getText().contains("Senha provisória: Senha123"));
 	}
 
 	private String removerAcentos(String texto) {

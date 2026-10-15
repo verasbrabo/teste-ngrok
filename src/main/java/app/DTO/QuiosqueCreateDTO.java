@@ -1,5 +1,6 @@
 package app.DTO;
 import java.time.LocalTime;
+import java.util.List;
 
 import app.entity.Quiosque;
 import app.enums.StatusConta;
@@ -7,8 +8,10 @@ public record QuiosqueCreateDTO(
 		Long id,
 		String nome,
 		String email,
+		String cnpj,
 		LocalTime openingTime,  
-	    LocalTime closingTime,	    
+	    LocalTime closingTime,
+	    List<Boolean> diasAtivo,
 	    Long distAtendimento,
 		String cep,
 		String uf,
@@ -27,8 +30,10 @@ public record QuiosqueCreateDTO(
     			q.getId(),
 				q.getNome(),
 				q.getEmail(),
+				q.getCnpj(),
 				q.getOpeningTime(),
 				q.getClosingTime(),
+				q.getDiasAtivo(),
 				q.getDistAtendimento(),
 				q.getEndereco().getCep(),
 				q.getEndereco().getUf(),

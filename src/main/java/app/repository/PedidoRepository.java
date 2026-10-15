@@ -262,5 +262,27 @@ public interface PedidoRepository extends JpaRepository<Pedido, UUID> {
 		        @Param("inicioOntem") LocalDateTime inicioOntem,
 		        @Param("fimOntem") LocalDateTime fimOntem
 		);
+
+	@Query("""
+			SELECT
+				q.id AS kioskId,
+				q.nome AS kioskName,
+				FUNCTION('DATE', p.dataHoraPedido) AS data,
+				SUM(p.valorTotal) AS faturamento
+			FROM Pedido p
+			JOIN p.quiosque q
+			WHERE q.proprietario.id = :proprietarioId
+			  AND (:kioskId IS NULL OR q.id = :kioskId)
+			  AND p.status IN (app.enums.StatusPedido.FINALIZADO, app.enums.StatusPedido.AVALIADO)
+			  AND p.dataHoraPedido >= :inicio
+			  AND p.dataHoraPedido < :fim
+			GROUP BY q.id, q.nome, FUNCTION('DATE', p.dataHoraPedido)
+			ORDER BY q.id, FUNCTION('DATE', p.dataHoraPedido)
+			""")
+	List<FaturamentoPorQuiosqueProjection> buscarFaturamentoPorQuiosque(
+			@Param("proprietarioId") Long proprietarioId,
+			@Param("kioskId") Long kioskId,
+			@Param("inicio") LocalDateTime inicio,
+			@Param("fim") LocalDateTime fim);
    
 }

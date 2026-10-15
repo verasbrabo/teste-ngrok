@@ -1,6 +1,7 @@
 package app.DTO;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
@@ -11,6 +12,9 @@ import app.enums.Categorias;
 public record QuiosqueNearByResponseDTO(
 	    Long id,
 	    String nome,
+	    LocalTime start,
+	    LocalTime fim,
+	    List<Boolean> diasTurno,
 	    Long distancia,
 	    Long distAtendimento,
 	    Long tempoEstimado,
@@ -21,6 +25,7 @@ public record QuiosqueNearByResponseDTO(
 	    String openingTime,
 	    String closingTime,
 	    boolean aberto,
+	    boolean funcionaHoje,
 	    boolean disponivelEntrega
 	) {
 	    private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("HH:mm");
@@ -29,6 +34,9 @@ public record QuiosqueNearByResponseDTO(
 	        return new QuiosqueNearByResponseDTO(
 	            q.getId(),
 	            q.getNome(),
+	            q.getOpeningTime(),
+	            q.getClosingTime(),
+	            q.getDiasAtivo(),
 	            q.getDistancia(),
 	            q.getDistAtendimento(),
 	            q.calcularTempoEstimado(),
@@ -39,6 +47,7 @@ public record QuiosqueNearByResponseDTO(
 	            q.getOpeningTime() != null ? q.getOpeningTime().format(HORA) : null,
 	            q.getClosingTime() != null ? q.getClosingTime().format(HORA) : null,
 	            q.estaAberto(),
+	            q.funcionaHoje(),
 	            q.podeEntregar()
 	        );
 	    }

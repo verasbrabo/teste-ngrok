@@ -10,6 +10,7 @@ public record UsuarioResponseDTO(
 		UUID id,
 		String nome,
 		String email,
+		String login,
 		String telefone,
 		String cnpj,
 		LocalDate dataCadastro,
@@ -21,6 +22,7 @@ public record UsuarioResponseDTO(
 		return new UsuarioResponseDTO(
 				u.getPublicId(),
 				u.getNome(),
+				emailDeContato(u),
 				u.getLogin(),
 				u.getTelefone(),
 				u instanceof Funcionario funcionario ? funcionario.getCnpj() : null,
@@ -28,6 +30,15 @@ public record UsuarioResponseDTO(
 				u.getImagem() != null ? u.getImagem().getUrl() : null,
 				u.getRole().getRole()
 				);
+	}
+
+	private static String emailDeContato(Usuario usuario) {
+		if (usuario instanceof Funcionario funcionario
+				&& funcionario.getEmail() != null
+				&& !funcionario.getEmail().isBlank()) {
+			return funcionario.getEmail();
+		}
+		return usuario.getLogin();
 	}
 	
 }

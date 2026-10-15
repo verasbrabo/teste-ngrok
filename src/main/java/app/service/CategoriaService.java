@@ -1,6 +1,9 @@
 package app.service;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -39,17 +42,34 @@ public class CategoriaService {
 				.map(CategoriaViewDTO::from)
 				.toList();
 	}
+
+	public List<Categorias> findDisponiveisByQuiosque(Long id_quiosque) {
+		if (!quiosqueRepository.existsById(id_quiosque)) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Quiosque não encontrado");
+		}
+
+		Set<Categorias> utilizadas = new HashSet<>(
+				categoriaRepository.buscarNomesAtivosPorQuiosqueId(id_quiosque));
+
+		return Arrays.stream(Categorias.values())
+				.filter(categoria -> !utilizadas.contains(categoria))
+				.toList();
+	}
 		
 	@Transactional
 	public CategoriaViewDTO save(Usuario usuario, Long id_quiosque, CategoriaCreateDTO data) {
 
-	    Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);
+		Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);
+		Categorias nome = Categorias.fromString(data.nome());
+		if (categoriaRepository.existsByQuiosqueIdAndNomeAndAtivoTrue(id_quiosque, nome)) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Categoria já utilizada");
+		}
 	    long ativas = quiosque.getCategorias().stream().filter(Categoria::isAtivo).count();
 	    if(ativas >= 20) {
 	    	throw new ResponseStatusException(
 		            HttpStatus.BAD_REQUEST, "Quantidade de categorias limitada a 20");
 	    }
-	    Categoria categoria = new Categoria(Categorias.fromString(data.nome()), data.ordem());
+	    Categoria categoria = new Categoria(nome, data.ordem());
 	    
 	    categoria.setQuiosque(quiosque);
 
@@ -63,8 +83,14 @@ public class CategoriaService {
 		
 		Categoria categoria = this.categoriaRepository.findByQuiosqueAndId(quiosque, id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Categoria não encontrada nesse quiosque")));
-		
-		categoria.setNome(Categorias.fromString(data.nome()));
+
+		Categorias nome = Categorias.fromString(data.nome());
+		if (categoriaRepository.existsByQuiosqueIdAndNomeAndAtivoTrueAndIdNot(
+				id_quiosque, nome, id)) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Categoria já utilizada");
+		}
+
+		categoria.setNome(nome);
 		categoria.setOrdem(data.ordem());
 		
 	    return CategoriaViewDTO.from(categoriaRepository.save(categoria));

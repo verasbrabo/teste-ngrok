@@ -99,7 +99,12 @@ public class FuncionarioService {
 			user.setInicioTurno(data.startShift());
 		if(data.finishShift() != null)
 			user.setFimTurno(data.finishShift());
-		
+
+		if (data.diasTurno() != null)
+			user.setDiasTurno(data.diasTurno());
+
+		if (data.email() != null && !data.email().isBlank())
+			user.setEmail(data.email().trim());
 
 		if (data.telefone() != null && !data.telefone().isBlank()) {
 		    user.setTelefone(data.telefone());
@@ -113,7 +118,7 @@ public class FuncionarioService {
 	public String resetPassword(Usuario usuario, Long id_quiosque, UUID id) {
 		Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);
 		
-		Usuario user = this.usuarioRepository.findByQuiosqueAndPublicId(quiosque, id)
+		Funcionario user = this.usuarioRepository.findByQuiosqueAndPublicId(quiosque, id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Funcionario não encontrada nesse quiosque")));
 		
 		String senha = UUID.randomUUID().toString().substring(0, 8);
@@ -122,6 +127,7 @@ public class FuncionarioService {
 
 		user.setSenhaHash(encryptedPassword);
 		user.setSenhaCifrada(senhaCriptoService.cifrar(senha));
+		user.setDeveTrocarSenha(true);
 		return senha;
 	}
 	

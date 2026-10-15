@@ -221,7 +221,10 @@ public class PedidoController {
 	}
 	
 	@PreAuthorize("hasAnyRole('FUNCIONARIO','CLIENTE')")
-	@PostMapping("/quiosque/{id_quiosque}/pedidos/{id}/cancelar")
+	@PostMapping({
+			"/quiosque/{id_quiosque}/pedidos/{id}/cancelar",
+			"/quiosques/{id_quiosque}/pedidos/{id}/cancelar"
+	})
 	public ResponseEntity<PedidoGetDTO> quiosqueCancelarPedidoQ(
 			@AuthenticationPrincipal Usuario cliente,
 			@PathVariable Long id_quiosque,

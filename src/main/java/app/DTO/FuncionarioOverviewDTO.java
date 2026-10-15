@@ -1,7 +1,9 @@
 package app.DTO;
 
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.UUID;
 
 import app.entity.Funcionario;
@@ -15,13 +17,14 @@ public record FuncionarioOverviewDTO(
 		String quiosque_nome,
 		String openingTime,
 		String closingTime,
+		List<Boolean> diasTurno,
 		Boolean emTurno,
 		String role,
 		String imagem
 		) {
 	
 	public static FuncionarioOverviewDTO from(Funcionario f, Quiosque q) {
-		LocalTime agora = LocalTime.now();
+		LocalDateTime agora = LocalDateTime.now();
 		
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -36,12 +39,39 @@ public record FuncionarioOverviewDTO(
 				q.getNome(),
 				inicio,
 				fim,
-				inicio != null && fim != null ? agora.isAfter(f.getInicioTurno()) && agora.isBefore(f.getFimTurno()) ? true : false : null,
+				f.getDiasTurnoLista(),
+				estaEmTurno(f.getDiasTurnoLista(), f.getInicioTurno(), f.getFimTurno(), agora),
 				f.getRole().toString(),
 				f.getImagem() != null ? f.getImagem().getUrl() : null
 				);
 	}
-	
-	
+
+	static Boolean estaEmTurno(
+			List<Boolean> diasTurno,
+			LocalTime inicio,
+			LocalTime fim,
+			LocalDateTime agora) {
+		if (inicio == null || fim == null || diasTurno == null || diasTurno.size() != 7) {
+			return null;
+		}
+		if (inicio.equals(fim)) {
+			return false;
+		}
+
+		LocalTime horario = agora.toLocalTime();
+		int diaAtual = agora.getDayOfWeek().getValue() % 7;
+		if (inicio.isBefore(fim)) {
+			return Boolean.TRUE.equals(diasTurno.get(diaAtual))
+					&& !horario.isBefore(inicio)
+					&& horario.isBefore(fim);
+		}
+		if (!horario.isBefore(inicio)) {
+			return Boolean.TRUE.equals(diasTurno.get(diaAtual));
+		}
+		if (horario.isBefore(fim)) {
+			return Boolean.TRUE.equals(diasTurno.get((diaAtual + 6) % 7));
+		}
+		return false;
+	}
 
 }

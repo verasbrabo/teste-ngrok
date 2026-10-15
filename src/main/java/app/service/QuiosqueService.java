@@ -94,6 +94,9 @@ public class QuiosqueService {
 				0L,
 				0L
 				);	
+		if (data.diasAtivo() != null) {
+			q.setDiasAtivo(data.diasAtivo());
+		}
 		//usuario.setQuiosque(q);
 		
 		this.quiosqueRepository.save(q);	

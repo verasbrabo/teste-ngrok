@@ -36,92 +36,81 @@ public class ImageService {
 	
 	@Transactional
 	public String uploadImagemUsuario(Usuario usuario, MultipartFile file) {
-		if(usuario.getImagem() != null) {
-			deletarArquivo(usuario.getImagem().getNomeArquivo());
-			
-			imageRepository.delete(usuario.getImagem());
-		}
-		
+		Imagem imagemAnterior = usuario.getImagem();
 		String nome = salvarArquivo(file);
-		
 		Imagem imagem = new Imagem();
-		
 		imagem.setNomeArquivo(nome);
-		
 		imagem.setUrl("/uploads/" + nome);
-		
 		imageRepository.save(imagem);
-		
 		usuario.setImagem(imagem);
-		
-		authRepository.save(usuario);
+		authRepository.saveAndFlush(usuario);
+		removerImagemAnterior(imagemAnterior);
 		
 		return imagem.getNomeArquivo();
 	}
 	
 	@Transactional
 	public void deleteImagemUsuario(Usuario usuario) {
-		deletarArquivo(usuario.getImagem().getNomeArquivo());
+		Imagem imagem = usuario.getImagem();
+		if (imagem == null)
+			return;
+
+		// Solta a chave estrangeira antes de remover o registro de imagem.
+		usuario.setImagem(null);
+		authRepository.saveAndFlush(usuario);
+		removerImagemAnterior(imagem);
 	}
 	
 	@Transactional
 	public String uploadImagemQuiosque(Quiosque quiosque, MultipartFile file) {
-		if(quiosque.getImagem() != null) {
-			deletarArquivo(quiosque.getImagem().getNomeArquivo());
-			
-			imageRepository.delete(quiosque.getImagem());
-		}
-		
+		Imagem imagemAnterior = quiosque.getImagem();
 		String nome = salvarArquivo(file);
-		
 		Imagem imagem = new Imagem();
-		
 		imagem.setNomeArquivo(nome);
-	
 		imagem.setUrl("/uploads/" + nome);
-		
 		imageRepository.save(imagem);
-		
 		quiosque.setImagem(imagem);
-		
-		quiosqueRepository.save(quiosque);
+		quiosqueRepository.saveAndFlush(quiosque);
+		removerImagemAnterior(imagemAnterior);
 		
 		return imagem.getNomeArquivo();
 	}
 	
 	@Transactional
 	public void deleteImagemQuiosque(Quiosque quiosque) {
-		deletarArquivo(quiosque.getImagem().getNomeArquivo());
+		Imagem imagem = quiosque.getImagem();
+		if (imagem == null)
+			return;
+
+		quiosque.setImagem(null);
+		quiosqueRepository.saveAndFlush(quiosque);
+		removerImagemAnterior(imagem);
 	}
 	
 	@Transactional
 	public String uploadImagemItem(Item item, MultipartFile file) {
-		if(item.getImagem() != null) {
-			deletarArquivo(item.getImagem().getNomeArquivo());
-			
-			imageRepository.delete(item.getImagem());
-		}
-		
+		Imagem imagemAnterior = item.getImagem();
 		String nome = salvarArquivo(file);
-		
 		Imagem imagem = new Imagem();
-		
 		imagem.setNomeArquivo(nome);
-
 		imagem.setUrl("/uploads/" + nome);
-		
 		imageRepository.save(imagem);
-		
 		item.setImagem(imagem);
-		
-		itemRepository.save(item);
+		itemRepository.saveAndFlush(item);
+		removerImagemAnterior(imagemAnterior);
 		
 		return imagem.getNomeArquivo();
 	}
 	
 	@Transactional
 	public void deleteImagemItem(Item item) {
-		deletarArquivo(item.getImagem().getNomeArquivo());
+		Imagem imagem = item.getImagem();
+		if (imagem == null)
+			return;
+
+		item.setImagem(null);
+		itemRepository.saveAndFlush(item);
+		removerImagemAnterior(imagem);
 	}
 	
 	private String salvarArquivo(MultipartFile file) {
@@ -167,15 +156,28 @@ public class ImageService {
 				|| n.endsWith(".heic");
 	}
 
-	private void deletarArquivo(String nome) {
+	private void removerImagemAnterior(Imagem imagem) {
+		if (imagem == null)
+			return;
+		imageRepository.delete(imagem);
+		deletarArquivo(imagem);
+	}
+
+	/** Resolve tanto imagens novas quanto registros antigos vindos da API web. */
+	private void deletarArquivo(Imagem imagem) {
+		String referencia = imagem.getUrl() != null && !imagem.getUrl().isBlank()
+				? Paths.get(imagem.getUrl()).getFileName().toString()
+				: imagem.getNomeArquivo();
+		if (referencia == null || referencia.isBlank())
+			return;
+		String nome = Paths.get(referencia).getFileName().toString();
+
 		try {
-			Path path = Paths.get("uploads/" + nome);
-			
+			Path path = Paths.get("uploads", nome);
 			Files.deleteIfExists(path);
-			
 		}	catch (IOException e) {
- 			
- 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Erro ao deletar arquivo"); 
+			throw new ResponseStatusException(
+					HttpStatus.INTERNAL_SERVER_ERROR, "Erro ao deletar arquivo", e);
  		}
 	}
 	

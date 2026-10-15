@@ -24,7 +24,13 @@ public record QuiosqueViewDTO(
 		String uf,
 		String cidade,
 		Double latitude,
-		Double longitude) {
+		Double longitude,
+		String email,
+		String cnpj,
+		String rua,
+		String numero,
+		String referencia,
+		List<Boolean> diasAtivo) {
 
 	public static QuiosqueViewDTO from(Quiosque q) {
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
@@ -55,7 +61,13 @@ public record QuiosqueViewDTO(
 				endereco != null ? endereco.getUf() : null,
 				endereco != null ? endereco.getCidade() : null,
 				coordenada != null ? coordenada.getLatitude() : null,
-				coordenada != null ? coordenada.getLongitude() : null
+				coordenada != null ? coordenada.getLongitude() : null,
+				q.getEmail(),
+				q.getCnpj(),
+				endereco != null ? endereco.getRua() : null,
+				endereco != null ? endereco.getNumero() : null,
+				endereco != null ? endereco.getReferencia() : null,
+				q.getDiasAtivo()
 				);
 	}
 

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -22,11 +23,14 @@ import org.springframework.web.server.ResponseStatusException;
 
 import app.auth.DTO.EmailDTO;
 import app.auth.DTO.RegisterDTO;
+import app.auth.DTO.ResetPasswordDTO;
 import app.entity.Cliente;
 import app.entity.Funcionario;
 import app.entity.RecoveryToken;
+import app.entity.Usuario;
 import app.enums.TipoConta;
 import app.enums.UserRole;
+import app.repository.FuncionarioRepository;
 import app.repository.RecoveryTokenRepository;
 import app.service.EmailService;
 
@@ -39,6 +43,8 @@ class AuthServiceTipoContaTest {
 	private PasswordEncoder passwordEncoder;
 	@Mock
 	private RecoveryTokenRepository recoveryTokenRepository;
+	@Mock
+	private FuncionarioRepository funcionarioRepository;
 	@Mock
 	private EmailService emailService;
 	@InjectMocks
@@ -73,7 +79,7 @@ class AuthServiceTipoContaTest {
 	void devePermitirClienteComContatoJaUsadoSomenteNoQuiosque() {
 		RegisterDTO dados = new RegisterDTO(
 				"Cliente", "mesmo@email.com", "Senha@123", "52998224725",
-				UserRole.CLIENTE, "11999999999");
+				UserRole.CLIENTE, "11999999999", null);
 		when(passwordEncoder.encode("Senha@123")).thenReturn("hash");
 		when(usuarioRepository.save(any(Cliente.class)))
 				.thenAnswer(invocacao -> invocacao.getArgument(0));
@@ -90,7 +96,7 @@ class AuthServiceTipoContaTest {
 	void deveRejeitarEmailRepetidoNoMesmoTipoDeConta() {
 		RegisterDTO dados = new RegisterDTO(
 				"Cliente", "mesmo@email.com", "Senha@123", null,
-				UserRole.CLIENTE, "11999999999");
+				UserRole.CLIENTE, "11999999999", null);
 		when(usuarioRepository.existsByLoginAndRole("mesmo@email.com", UserRole.CLIENTE))
 				.thenReturn(true);
 
@@ -116,5 +122,57 @@ class AuthServiceTipoContaTest {
 				org.mockito.ArgumentMatchers.eq("mesmo@email.com"),
 				org.mockito.ArgumentMatchers.anyString(),
 				org.mockito.ArgumentMatchers.anyString());
+	}
+
+	@Test
+	void deveAceitarFormatoWebNaRecuperacaoDoProprietario() {
+		Funcionario proprietario = org.mockito.Mockito.mock(Funcionario.class);
+		when(usuarioRepository.findByLoginAndRole("dono@teste.com", UserRole.PROPRIETARIO))
+				.thenReturn(Optional.of(proprietario));
+		when(recoveryTokenRepository.existsByUsuarioAndEnviadoAfterAndExpiracaoAfter(
+				org.mockito.ArgumentMatchers.eq(proprietario), any(), any())).thenReturn(false);
+
+		authService.forgotPassword(new EmailDTO("dono@teste.com", null));
+
+		verify(recoveryTokenRepository).save(any(RecoveryToken.class));
+		verify(emailService).enviarEmail(
+				org.mockito.ArgumentMatchers.eq("dono@teste.com"),
+				org.mockito.ArgumentMatchers.anyString(),
+				org.mockito.ArgumentMatchers.anyString());
+	}
+
+	@Test
+	void deveManterCadastroJsonDeProprietarioParaWeb() {
+		RegisterDTO dados = new RegisterDTO(
+				"Proprietario", "dono@teste.com", "Senha@123", null,
+				UserRole.PROPRIETARIO, "11988888888", "12.345.678/0001-90");
+		when(passwordEncoder.encode("Senha@123")).thenReturn("hash");
+		when(usuarioRepository.save(any(Funcionario.class)))
+				.thenAnswer(invocacao -> invocacao.getArgument(0));
+
+		Usuario resultado = authService.register(dados);
+
+		assertEquals(UserRole.PROPRIETARIO, resultado.getRole());
+		assertEquals("12345678000190", ((Funcionario) resultado).getCnpj());
+		verify(funcionarioRepository).existsByCnpj("12345678000190");
+	}
+
+	@Test
+	void deveRedefinirSenhaDoProprietarioSemTipoNoFormatoWeb() {
+		Funcionario proprietario = org.mockito.Mockito.mock(Funcionario.class);
+		RecoveryToken token = new RecoveryToken(
+				"AB12", proprietario, LocalDateTime.now().plusMinutes(30), LocalDateTime.now());
+		when(recoveryTokenRepository.findByTokenAndUsuarioRoleAndExpiracaoAfter(
+				org.mockito.ArgumentMatchers.eq("AB12"),
+				org.mockito.ArgumentMatchers.eq(UserRole.PROPRIETARIO),
+				any())).thenReturn(Optional.of(token));
+		when(passwordEncoder.encode("SenhaNova@123")).thenReturn("hash-novo");
+
+		authService.resetPassword(
+				"AB12", new ResetPasswordDTO("SenhaNova@123", null));
+
+		verify(proprietario).setSenhaHash("hash-novo");
+		verify(usuarioRepository).save(proprietario);
+		verify(recoveryTokenRepository).delete(token);
 	}
 }

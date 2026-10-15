@@ -19,7 +19,9 @@ public record RegisterDTO(
 		@NotNull
 		UserRole role,
 		@NotBlank
-		String telefone
+		String telefone,
+		// Usado pelo cadastro JSON do proprietário mantido para o painel web.
+		String cnpj
 		
 		) {
 

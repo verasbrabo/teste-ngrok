@@ -1,10 +1,12 @@
 package app.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.ZoneOffset;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -16,28 +18,33 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import app.DTO.DailyRevenueDTO;
+import app.DTO.DailyRevenuePointDTO;
 import app.DTO.EmpresaOverviewDTO;
+import app.DTO.EstatisticasDTO;
 import app.DTO.FuncionarioOverviewDTO;
+import app.DTO.KioskRevenueDTO;
+import app.DTO.OrderCategoryDTO;
+import app.DTO.OrdersByCategoryDTO;
 import app.DTO.PedidoOverviewDTO;
-import app.DTO.QuiosqueCreateDTO;
 import app.DTO.QuiosqueOverviewDTO;
+import app.DTO.RevenueByKioskDTO;
+import app.DTO.TopProductDTO;
+import app.DTO.TopProductsDTO;
 import app.auth.AuthRepository;
-import app.entity.AvaliacaoResumo;
-import app.entity.Coordenada;
-import app.entity.Endereco;
 import app.entity.Funcionario;
 import app.entity.ItemPedido;
 import app.entity.Pedido;
 import app.entity.Quiosque;
-import app.entity.Usuario;
-import app.enums.StatusConta;
+import app.repository.FaturamentoPorQuiosqueProjection;
 import app.repository.ItemPedidoRepository;
+import app.repository.PedidosPorCategoriaProjection;
 import app.repository.PedidoRepository;
+import app.repository.ProdutoMaisVendidoProjection;
 import app.repository.QuiosqueMetricasProjection;
 import app.repository.QuiosqueRepository;
 
@@ -218,6 +225,116 @@ public class EmpresaService {
 	                funcionarios.stream()
 	                        .map(f ->   FuncionarioOverviewDTO.from(f, f.getQuiosque())).toList();
 		return overview;
+	}
+
+	public EstatisticasDTO statistics(
+			Funcionario proprietario,
+			LocalDate startDate,
+			LocalDate endDate,
+			Long kioskId) {
+		if (startDate.isAfter(endDate)) {
+			throw new ResponseStatusException(
+					HttpStatus.BAD_REQUEST,
+					"A data inicial não pode ser posterior à data final.");
+		}
+
+		List<Quiosque> quiosquesDoProprietario = quiosqueRepository.findByProprietario(proprietario);
+		List<Quiosque> quiosquesSelecionados = quiosquesDoProprietario.stream()
+				.filter(quiosque -> kioskId == null || quiosque.getId().equals(kioskId))
+				.toList();
+
+		if (kioskId != null && quiosquesSelecionados.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Quiosque não encontrado.");
+		}
+
+		LocalDateTime inicio = startDate.atStartOfDay();
+		LocalDateTime fim = endDate.plusDays(1).atStartOfDay();
+		List<LocalDate> datas = startDate.datesUntil(endDate.plusDays(1)).toList();
+
+		List<FaturamentoPorQuiosqueProjection> faturamentos =
+				pedidoRepository.buscarFaturamentoPorQuiosque(
+						proprietario.getId(), kioskId, inicio, fim);
+
+		Map<Long, List<FaturamentoPorQuiosqueProjection>> faturamentosPorQuiosque =
+				faturamentos.stream().collect(Collectors.groupingBy(
+						FaturamentoPorQuiosqueProjection::getKioskId,
+						LinkedHashMap::new,
+						Collectors.toList()));
+
+		List<KioskRevenueDTO> faturamentoDosQuiosques = quiosquesSelecionados.stream()
+				.map(quiosque -> montarFaturamentoDoQuiosque(
+						quiosque,
+						faturamentosPorQuiosque.getOrDefault(quiosque.getId(), List.of()),
+						datas))
+				.toList();
+
+		Map<LocalDate, BigDecimal> totalPorData = new HashMap<>();
+		for (FaturamentoPorQuiosqueProjection faturamento : faturamentos) {
+			totalPorData.merge(
+					faturamento.getData(),
+					valorOuZero(faturamento.getFaturamento()),
+					BigDecimal::add);
+		}
+
+		ZoneOffset offsetBrasil = ZoneOffset.of("-03:00");
+		List<DailyRevenuePointDTO> pontosDiarios = datas.stream()
+				.map(data -> new DailyRevenuePointDTO(
+						data.atTime(12, 0).atOffset(offsetBrasil),
+						totalPorData.getOrDefault(data, BigDecimal.ZERO)))
+				.toList();
+
+		List<TopProductDTO> produtos = itemPedidoRepository.buscarProdutosMaisVendidos(
+				proprietario.getId(), kioskId, inicio, fim, PageRequest.of(0, 5))
+				.stream()
+				.map(this::toTopProductDTO)
+				.toList();
+
+		List<OrderCategoryDTO> categorias = itemPedidoRepository.buscarPedidosPorCategoria(
+				proprietario.getId(), kioskId, inicio, fim)
+				.stream()
+				.map(this::toOrderCategoryDTO)
+				.toList();
+
+		return new EstatisticasDTO(
+				new RevenueByKioskDTO(datas, faturamentoDosQuiosques),
+				new TopProductsDTO(produtos),
+				new DailyRevenueDTO(pontosDiarios),
+				new OrdersByCategoryDTO(categorias));
+	}
+
+	private KioskRevenueDTO montarFaturamentoDoQuiosque(
+			Quiosque quiosque,
+			List<FaturamentoPorQuiosqueProjection> faturamentos,
+			List<LocalDate> datas) {
+		Map<LocalDate, BigDecimal> faturamentoPorData = faturamentos.stream()
+				.collect(Collectors.toMap(
+						FaturamentoPorQuiosqueProjection::getData,
+						item -> valorOuZero(item.getFaturamento()),
+						BigDecimal::add));
+
+		List<BigDecimal> valores = datas.stream()
+				.map(data -> faturamentoPorData.getOrDefault(data, BigDecimal.ZERO))
+				.toList();
+
+		return new KioskRevenueDTO(quiosque.getId(), quiosque.getNome(), valores);
+	}
+
+	private TopProductDTO toTopProductDTO(ProdutoMaisVendidoProjection produto) {
+		return new TopProductDTO(
+				produto.getProductId(),
+				produto.getProductName(),
+				Math.toIntExact(produto.getUnitsSold()));
+	}
+
+	private OrderCategoryDTO toOrderCategoryDTO(PedidosPorCategoriaProjection categoria) {
+		return new OrderCategoryDTO(
+				categoria.getCategoryId(),
+				categoria.getCategoryName().getCategorias(),
+				Math.toIntExact(categoria.getOrderCount()));
+	}
+
+	private BigDecimal valorOuZero(BigDecimal valor) {
+		return valor == null ? BigDecimal.ZERO : valor;
 	}
 	
 	private List<QuiosqueOverviewDTO> getQuiosqueOverview(List<Quiosque> quiosques, List<Long> quiosqueIds) {

@@ -22,5 +22,23 @@ public class EmailService {
         System.out.println(mensagem.toString());
         mailSender.send(mensagem);
     }
+
+	public void enviarCredenciaisFuncionario(
+			String destinatario,
+			String usuario,
+			String senha) {
+		SimpleMailMessage mensagem = new SimpleMailMessage();
+		mensagem.setTo(destinatario);
+		mensagem.setSubject("Seus dados de acesso");
+		mensagem.setText("""
+				Olá,
+
+				Seu acesso foi criado com sucesso.
+
+				Usuário: %s
+				Senha provisória: %s
+				""".formatted(usuario, senha));
+		mailSender.send(mensagem);
+	}
 }
 

@@ -1,6 +1,7 @@
 package app.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import app.DTO.FuncionarioResponseDTO;
 import app.auth.AuthRepository;
@@ -35,6 +37,9 @@ class FuncionarioServiceTest {
 	@Mock
 	private SenhaCriptoService senhaCriptoService;
 
+	@Mock
+	private PasswordEncoder passwordEncoder;
+
 	@InjectMocks
 	private FuncionarioService funcionarioService;
 
@@ -55,6 +60,10 @@ class FuncionarioServiceTest {
 		when(funcionario.getQuiosque()).thenReturn(quiosqueSelecionado);
 		when(funcionario.getPublicId()).thenReturn(funcionarioId);
 		when(funcionario.getNome()).thenReturn("Funcionario do quiosque 22");
+		when(funcionario.getLogin()).thenReturn("QUI22funcionario");
+		when(funcionario.getEmail()).thenReturn("funcionario@teste.com");
+		when(funcionario.getDiasTurnoLista()).thenReturn(
+				List.of(false, true, true, true, true, true, false));
 
 		List<FuncionarioResponseDTO> resultado = funcionarioService
 				.getFuncionarios(proprietario, quiosqueSelecionadoId);
@@ -63,6 +72,10 @@ class FuncionarioServiceTest {
 		assertEquals(funcionarioId, resultado.get(0).id());
 		assertEquals(quiosqueSelecionadoId, resultado.get(0).quiosqueId());
 		assertEquals("Funcionario do quiosque 22", resultado.get(0).nome());
+		assertEquals("QUI22funcionario", resultado.get(0).login());
+		assertEquals("funcionario@teste.com", resultado.get(0).email());
+		assertEquals(List.of(false, true, true, true, true, true, false),
+				resultado.get(0).diasAtivo());
 		verify(usuarioRepository).findByQuiosqueId(quiosqueSelecionadoId);
 	}
 
@@ -91,5 +104,29 @@ class FuncionarioServiceTest {
 
 		assertEquals(1, resultado.size());
 		assertEquals(funcionarioId, resultado.get(0).id());
+	}
+
+	@Test
+	void deveExigirTrocaDepoisDeRedefinirSenhaDoFuncionario() {
+		Long quiosqueId = 22L;
+		UUID funcionarioId = UUID.randomUUID();
+		Usuario proprietario = mock(Usuario.class);
+		Quiosque quiosque = mock(Quiosque.class);
+		Funcionario funcionario = mock(Funcionario.class);
+
+		when(quiosqueRepository.findById(quiosqueId)).thenReturn(Optional.of(quiosque));
+		when(quiosque.usuarioPossuiAcesso(proprietario)).thenReturn(true);
+		when(usuarioRepository.findByQuiosqueAndPublicId(quiosque, funcionarioId))
+				.thenReturn(Optional.of(funcionario));
+		when(passwordEncoder.encode(anyString())).thenReturn("hash-novo");
+		when(senhaCriptoService.cifrar(anyString())).thenReturn("senha-cifrada");
+
+		String senha = funcionarioService.resetPassword(
+				proprietario, quiosqueId, funcionarioId);
+
+		assertEquals(8, senha.length());
+		verify(funcionario).setSenhaHash("hash-novo");
+		verify(funcionario).setSenhaCifrada("senha-cifrada");
+		verify(funcionario).setDeveTrocarSenha(true);
 	}
 }

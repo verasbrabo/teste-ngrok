@@ -2,8 +2,10 @@ package app.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import app.DTO.QuiosqueDTO;
 import app.DTO.QuiosqueUpdateDTO;
@@ -40,6 +42,8 @@ import lombok.Setter;
 //@NoArgsConstructor
 @Entity
 public class Quiosque {
+	private static final int TODOS_DIAS_ATIVOS = 0b1111111;
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id; 
@@ -54,7 +58,11 @@ public class Quiosque {
 	private LocalTime openingTime;
 	
 	private LocalTime closingTime;
-	
+
+	// Ordem dos bits/lista: domingo (0) até sábado (6).
+	@Column(name = "dias_ativo_bitmask")
+	private Integer diasAtivoBitmask = TODOS_DIAS_ATIVOS;
+
 	private Long distAtendimento;
 	
 	private Long somaTempoEntrega;
@@ -117,7 +125,49 @@ public class Quiosque {
 
 	@Enumerated(EnumType.STRING)
 	private StatusConta status;
-	
+
+	public List<Boolean> getDiasAtivo() {
+		int dias = diasAtivoBitmask == null ? TODOS_DIAS_ATIVOS : diasAtivoBitmask;
+		return IntStream.range(0, 7)
+				.mapToObj(indice -> (dias & (1 << indice)) != 0)
+				.toList();
+	}
+
+	public void setDiasAtivo(List<Boolean> diasAtivo) {
+		if (diasAtivo == null) {
+			this.diasAtivoBitmask = TODOS_DIAS_ATIVOS;
+			return;
+		}
+		if (diasAtivo.size() != 7) {
+			throw new IllegalArgumentException("Os dias de funcionamento devem conter sete valores");
+		}
+
+		this.diasAtivoBitmask = IntStream.range(0, 7)
+				.filter(indice -> Boolean.TRUE.equals(diasAtivo.get(indice)))
+				.map(indice -> 1 << indice)
+				.sum();
+	}
+
+	public Integer getDiasAtivoBitmask() {
+		return diasAtivoBitmask;
+	}
+
+	public void setDiasAtivoBitmask(Integer diasAtivoBitmask) {
+		this.diasAtivoBitmask = diasAtivoBitmask;
+	}
+
+	public boolean funcionaHoje() {
+		return funcionaEm(LocalDate.now());
+	}
+
+	boolean funcionaEm(LocalDate data) {
+		return diaAtivo(data.getDayOfWeek().getValue() % 7);
+	}
+
+	private boolean diaAtivo(int indiceDia) {
+		return diasAtivoBitmask == null
+				|| (diasAtivoBitmask & (1 << indiceDia)) != 0;
+	}
 	public boolean usuarioPossuiAcesso(Usuario usuario) {
 
 	    return pertenceAoProprietario(usuario)
@@ -141,23 +191,35 @@ public class Quiosque {
 	public boolean atende(Coordenada entrega) {
 
 		boolean atendeDist = this.coordenada.distanciaAte(entrega) <= this.distAtendimento;
-		boolean atendeHora = atendeHorario();
-		
-	    return atendeDist && atendeHora;
-	}
-	
-	private boolean atendeHorario() {
-		LocalTime now = LocalTime.now();
-		if(this.openingTime.isAfter(this.closingTime)) {
-			return !now.isBefore(this.openingTime)  || !now.isAfter(this.closingTime);
-		} else {
-			return !now.isBefore(this.openingTime)  && !now.isAfter(this.closingTime);
-		}
+		return atendeDist && estaAberto();
 	}
 
-	/** Quiosque aberto agora (dentro do horário de funcionamento). */
 	public boolean estaAberto() {
-		return atendeHorario();
+		return estaAbertoEm(LocalDateTime.now());
+	}
+
+	boolean estaAbertoEm(LocalDateTime agora) {
+		if (openingTime == null || closingTime == null || openingTime.equals(closingTime)) {
+			return false;
+		}
+
+		LocalTime horario = agora.toLocalTime();
+		int diaAtual = agora.getDayOfWeek().getValue() % 7;
+		if (openingTime.isBefore(closingTime)) {
+			return diaAtivo(diaAtual)
+					&& !horario.isBefore(openingTime)
+					&& horario.isBefore(closingTime);
+		}
+
+		// Em expedientes que atravessam a meia-noite, a madrugada pertence
+		// ao dia em que o expediente começou.
+		if (!horario.isBefore(openingTime)) {
+			return diaAtivo(diaAtual);
+		}
+		if (horario.isBefore(closingTime)) {
+			return diaAtivo((diaAtual + 6) % 7);
+		}
+		return false;
 	}
 
 	/**
@@ -184,7 +246,15 @@ public class Quiosque {
 		if (quiosque.nome() != null) {
 		    this.nome = quiosque.nome();
 		}
-		
+
+		if (quiosque.email() != null) {
+			this.email = quiosque.email();
+		}
+
+		if (quiosque.cnpj() != null) {
+			this.cnpj = quiosque.cnpj();
+		}
+
 		if (quiosque.openingTime() != null) {
 			this.openingTime = quiosque.openingTime() ;
 		}
@@ -192,7 +262,11 @@ public class Quiosque {
 		if (quiosque.closingTime() != null) {
 			this.closingTime = quiosque.closingTime();
 		}
-		
+
+		if (quiosque.diasAtivo() != null) {
+			setDiasAtivo(quiosque.diasAtivo());
+		}
+
 		if (quiosque.distAtendimento() != null) {
 			this.distAtendimento = quiosque.distAtendimento();
 		}
@@ -208,7 +282,19 @@ public class Quiosque {
 		if (quiosque.cidade() != null) {
 			this.endereco.setCidade(quiosque.cidade());
 		}
-		
+
+		if (quiosque.referencia() != null) {
+			this.endereco.setReferencia(quiosque.referencia());
+		}
+
+		if (quiosque.rua() != null) {
+			this.endereco.setRua(quiosque.rua());
+		}
+
+		if (quiosque.numero() != null) {
+			this.endereco.setNumero(quiosque.numero());
+		}
+
 		if (quiosque.latitude() != null) {
 		    this.coordenada.setLatitude(quiosque.latitude());
 		}

@@ -1,10 +1,12 @@
 package app.controller;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,9 +18,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import app.DTO.EmpresaOverviewDTO;
+import app.DTO.EstatisticasDTO;
 import app.DTO.FuncionarioOverviewDTO;
 import app.DTO.PedidoOverviewDTO;
 import app.DTO.QuiosqueCreateDTO;
@@ -50,6 +54,17 @@ public class EmpresaController {
 	public ResponseEntity<EmpresaOverviewDTO> overview(
 			@AuthenticationPrincipal Funcionario usuario){
 		return ResponseEntity.status(HttpStatus.OK).body(this.empresaService.overview(usuario));
+	}
+
+	@GetMapping("/me/statistics")
+	@PreAuthorize("hasRole('PROPRIETARIO')")
+	public ResponseEntity<EstatisticasDTO> statistics(
+			@AuthenticationPrincipal Funcionario usuario,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+			@RequestParam(required = false) Long kioskId) {
+		return ResponseEntity.ok(
+				empresaService.statistics(usuario, startDate, endDate, kioskId));
 	}
 	
 	@GetMapping("/me/overview/funcionarios")

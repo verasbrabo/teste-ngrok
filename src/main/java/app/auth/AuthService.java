@@ -10,7 +10,10 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.mail.MailException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -51,6 +54,7 @@ import jakarta.transaction.Transactional;
 
 @Service
 public class AuthService implements UserDetailsService{
+	private static final Logger LOGGER = LoggerFactory.getLogger(AuthService.class);
 	private static final String PREFIXO_CLIENTE = "CLIENTE::";
 	private static final String PREFIXO_QUIOSQUE = "QUIOSQUE::";
 	private static final Set<UserRole> ROLES_QUIOSQUE = Set.of(
@@ -98,10 +102,23 @@ public class AuthService implements UserDetailsService{
 	}
 	
 	public Usuario register(RegisterDTO data){
-		if(!data.role().equals(UserRole.CLIENTE)) {
+		if (data.role() == UserRole.PROPRIETARIO) {
+			String cnpj = data.cnpj() != null && !data.cnpj().isBlank()
+					? data.cnpj()
+					: data.cpf();
+			if (cnpj == null || cnpj.isBlank()) {
+				throw new ResponseStatusException(
+						HttpStatus.BAD_REQUEST, "CNPJ é obrigatório para proprietários");
+			}
+			return registerProprietario(
+					new RegisterProprietarioDTO(
+							data.nome(), data.email(), data.telefone(), cnpj, data.password()),
+					null);
+		}
+		if (data.role() != UserRole.CLIENTE) {
 			throw new ResponseStatusException(
 					HttpStatus.BAD_REQUEST,
-					"Proprietários devem usar /auth/register/proprietario");
+					"Funcionários devem ser cadastrados pelo gestor do quiosque");
 		}
 		if (usuarioRepository.existsByLoginAndRole(data.email(), UserRole.CLIENTE))
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "E-mail já cadastrado");
@@ -139,6 +156,8 @@ public class AuthService implements UserDetailsService{
 				"",
 				data.telefone(),
 				UserRole.PROPRIETARIO);
+		// No proprietário, o e-mail de contato também é o login da conta.
+		proprietario.setEmail(data.email().trim());
 		proprietario.setCnpj(cnpj);
 		proprietario.setUltimoLogin(LocalDateTime.now());
 		proprietario = usuarioRepository.save(proprietario);
@@ -153,37 +172,54 @@ public class AuthService implements UserDetailsService{
 		return cnpj.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
 	}
 	
-	public RegisterAdminResponseDTO registerFuncionario(Usuario usuario, Long id_quiosque, RegisterFuncionarioDTO data){
-	   // if(usuarioRepository.findByLogin(data.email()) != null)
-	    //    throw new RuntimeException("Usuário já cadastrado");
-
-	    Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);
-	    UserRole role = validarCargoCadastro(usuario.getRole(), data.role());
-	    if (usuarioRepository.existsByTelefoneAndRoleIn(data.telefone(), ROLES_QUIOSQUE)) {
+	@Transactional
+	public RegisterAdminResponseDTO registerFuncionario(
+			Usuario usuario,
+			Long idQuiosque,
+			RegisterFuncionarioDTO data) {
+		Quiosque quiosque = findQuiosqueForUser(usuario, idQuiosque);
+		UserRole role = validarCargoCadastro(usuario.getRole(), data.role());
+		if (usuarioRepository.existsByTelefoneAndRoleIn(data.telefone(), ROLES_QUIOSQUE)) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Telefone já cadastrado");
-	    }
-	    
-	    String senha = UUID.randomUUID().toString().substring(0, 8);
-	    
-	    String encryptedPassword = passwordEncoder.encode(senha);
-	    
-	    // Gerar um login usando personalizado usando o nome e o quiosque 
-	    
-	    String login = gerarUsername(data.nome(), quiosque.getCodigo());
-	    
-	    login = procurarDuplicatas(login);
-	    
-	    Funcionario user = new Funcionario(data.nome(), login, encryptedPassword, normalizarCpf(data.cpf()), data.telefone(), role);
-	    
-	    user.setInicioTurno(data.startShift());
-	    user.setFimTurno(data.finishShift());
-	    user.setSenhaCifrada(senhaCriptoService.cifrar(senha));
-	    user.setQuiosque(quiosque);
-	    quiosque.getFuncionarios().add(user);
-	    user = this.usuarioRepository.save(user);
-	    this.quiosqueRepository.save(quiosque);
-	    RegisterAdminResponseDTO response = new RegisterAdminResponseDTO(user.getPublicId(), quiosque.getNome(), senha, user.getNome(),user.getLogin(), user.getRole(), user.getTelefone());
-	    return response;
+		}
+
+		String senha = UUID.randomUUID().toString().substring(0, 8);
+		String encryptedPassword = passwordEncoder.encode(senha);
+		String login = procurarDuplicatas(gerarUsername(data.nome(), quiosque.getCodigo()));
+
+		Funcionario user = new Funcionario(
+				data.nome(), login, encryptedPassword, normalizarCpf(data.cpf()),
+				data.telefone(), role);
+		user.setEmail(data.email().trim());
+		user.setInicioTurno(data.startShift());
+		user.setFimTurno(data.finishShift());
+		if (data.diasTurno() != null)
+			user.setDiasTurno(data.diasTurno());
+		user.setDeveTrocarSenha(true);
+		user.setSenhaCifrada(senhaCriptoService.cifrar(senha));
+		user.setQuiosque(quiosque);
+		quiosque.getFuncionarios().add(user);
+		user = usuarioRepository.save(user);
+		quiosqueRepository.save(quiosque);
+
+		RegisterAdminResponseDTO response = new RegisterAdminResponseDTO(
+				user.getPublicId(),
+				quiosque.getNome(),
+				senha,
+				user.getEmail(),
+				user.getNome(),
+				user.getLogin(),
+				user.getDiasTurnoLista(),
+				user.getRole(),
+				user.getTelefone());
+
+		// O cadastro deve permanecer concluído mesmo se o provedor SMTP falhar.
+		try {
+			emailService.enviarCredenciaisFuncionario(user.getEmail(), login, senha);
+		} catch (MailException exception) {
+			LOGGER.warn("Funcionário criado, mas o e-mail de credenciais não foi enviado", exception);
+		}
+		return response;
 	}
 
 	/** Garante que somente o proprietário possa conceder o cargo de gerente. */
@@ -363,6 +399,11 @@ public class AuthService implements UserDetailsService{
 	public UsuarioResponseDTO putUsuario(Usuario user, UpdateMeDTO data){
 		validarDadosUnicos(user, data);
 		user.atualizarPerfil(data);
+		if (user instanceof Funcionario funcionario
+				&& data.email() != null
+				&& !data.email().isBlank()) {
+			funcionario.setEmail(data.email().trim());
+		}
 		usuarioRepository.save(user);
 		UsuarioResponseDTO response = UsuarioResponseDTO.from(user);
 	    return response;
@@ -370,7 +411,10 @@ public class AuthService implements UserDetailsService{
 
 	private void validarDadosUnicos(Usuario user, UpdateMeDTO data) {
 		boolean contaCliente = user.getRole() == UserRole.CLIENTE;
-		if (data.email() != null && !data.email().isBlank()
+		boolean emailTambemEhLogin = user.getRole() == UserRole.CLIENTE
+				|| user.getRole() == UserRole.PROPRIETARIO;
+		if (emailTambemEhLogin
+				&& data.email() != null && !data.email().isBlank()
 				&& !data.email().equalsIgnoreCase(user.getLogin())) {
 			boolean emailEmUso = contaCliente
 					? usuarioRepository.existsByLoginAndRoleAndIdNot(
@@ -399,8 +443,11 @@ public class AuthService implements UserDetailsService{
 	        throw new RuntimeException("Senha atual inválida");
 	    }
 		
-		if (data.novaSenha() != null && !data.novaSenha().isBlank()) 
-			usuario.setSenhaHash(passwordEncoder.encode(data.novaSenha()));		
+		if (data.novaSenha() != null && !data.novaSenha().isBlank()) {
+			usuario.setSenhaHash(passwordEncoder.encode(data.novaSenha()));
+			if (usuario instanceof Funcionario funcionario)
+				funcionario.setDeveTrocarSenha(false);
+		}
 	}
 	
 	@Transactional
