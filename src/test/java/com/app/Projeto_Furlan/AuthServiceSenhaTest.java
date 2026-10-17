@@ -21,6 +21,8 @@ class AuthServiceSenhaTest {
 
 	@Mock
 	private PasswordEncoder passwordEncoder;
+	@Mock
+	private AuthRepository usuarioRepository;
 
 	@InjectMocks
 	private AuthService authService;
@@ -37,6 +39,8 @@ class AuthServiceSenhaTest {
 
 		verify(funcionario).setSenhaHash("hash-novo");
 		verify(funcionario).setDeveTrocarSenha(false);
+		// Confirma que a troca do primeiro acesso é efetivamente gravada no banco.
+		verify(usuarioRepository).save(funcionario);
 	}
 
 	@Test

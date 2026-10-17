@@ -461,6 +461,10 @@ public class AuthService implements UserDetailsService{
 			usuario.setSenhaCifrada(null);
 			if (usuario instanceof Funcionario funcionario)
 				funcionario.setDeveTrocarSenha(false);
+
+			// O usuário recebido do contexto de segurança pode estar desvinculado da
+			// sessão JPA; o save garante a persistência da senha e do primeiro acesso.
+			usuarioRepository.save(usuario);
 		}
 	}
 	
