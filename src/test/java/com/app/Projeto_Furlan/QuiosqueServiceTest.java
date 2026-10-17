@@ -1,6 +1,7 @@
 package app.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -14,10 +15,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
+import app.DTO.QuiosqueUpdateDTO;
 import app.DTO.QuiosqueViewDTO;
 import app.entity.Funcionario;
 import app.entity.Quiosque;
+import app.entity.Usuario;
 import app.enums.UserRole;
 import app.repository.QuiosqueRepository;
 
@@ -29,6 +34,12 @@ class QuiosqueServiceTest {
 
 	@Mock
 	private Funcionario funcionario;
+
+	@Mock
+	private Usuario gerente;
+
+	@Mock
+	private Quiosque quiosque;
 
 	@InjectMocks
 	private QuiosqueService quiosqueService;
@@ -57,5 +68,25 @@ class QuiosqueServiceTest {
 		// A entidade do SecurityContext não deve fornecer o quiosque diretamente,
 		// pois ela pode estar desconectada da sessão do Hibernate.
 		verify(funcionario, never()).getQuiosque();
+	}
+
+	@Test
+	void deveImpedirGerenteDeAlterarDiasDeFuncionamento() {
+		// O gerente possui acesso ao quiosque, mas não é seu proprietário.
+		QuiosqueUpdateDTO atualizacao = new QuiosqueUpdateDTO(
+				null, null, null, null, null,
+				List.of(false, true, true, true, true, true, false),
+				null, null, null, null, null, null, null, null, null);
+
+		when(quiosqueRepository.findById(7L)).thenReturn(Optional.of(quiosque));
+		when(quiosque.usuarioPossuiAcesso(gerente)).thenReturn(true);
+		when(quiosque.pertenceAoProprietario(gerente)).thenReturn(false);
+
+		ResponseStatusException erro = assertThrows(
+				ResponseStatusException.class,
+				() -> quiosqueService.update(gerente, 7L, atualizacao));
+
+		assertEquals(HttpStatus.FORBIDDEN, erro.getStatusCode());
+		verify(quiosque, never()).atualizarDados(atualizacao);
 	}
 }

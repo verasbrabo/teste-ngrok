@@ -109,6 +109,14 @@ public class QuiosqueService {
 	public QuiosqueCreateDTO update(Usuario usuario, Long id_quiosque, QuiosqueUpdateDTO data) {
 		
 		Quiosque q = findQuiosqueForUser(usuario, id_quiosque);
+
+		// A escala semanal é uma decisão do titular. O gerente mantém acesso às
+		// demais edições do quiosque, mas não pode alterar diasAtivo.
+		if (data.diasAtivo() != null && !q.pertenceAoProprietario(usuario)) {
+			throw new ResponseStatusException(
+					HttpStatus.FORBIDDEN,
+					"Apenas o proprietário pode alterar os dias de funcionamento");
+		}
 		
 		q.atualizarDados(data);
 				
