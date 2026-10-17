@@ -157,8 +157,12 @@ public class AuthController {
 		return ResponseEntity.status(HttpStatus.OK).body(user);
 	}
 	
+	/**
+	 * Permite que qualquer conta com JWT válido troque a própria senha. Isso
+	 * inclui funcionário e gerente durante o primeiro acesso com senha provisória.
+	 */
 	@PatchMapping("/me")
-	@PreAuthorize("authenticated()") // Aqui pra fazer aquela desgraça
+	@PreAuthorize("isAuthenticated()")
 	public ResponseEntity<Void> patchSenha(
 			@AuthenticationPrincipal Usuario usuario,
 			@RequestBody TrocarSenhaDTO senha){		
