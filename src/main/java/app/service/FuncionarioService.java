@@ -1,7 +1,9 @@
 package app.service;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,33 +15,35 @@ import org.springframework.web.server.ResponseStatusException;
 
 import app.DTO.FuncionarioResponseDTO;
 import app.DTO.RegisterFuncionarioDTO;
-import app.DTO.TrocarSenhaDTO;
 import app.auth.AuthRepository;
-import app.auth.DTO.RegisterDTO;
 import app.entity.Funcionario;
 import app.entity.Quiosque;
 import app.entity.Usuario;
 import app.enums.UserRole;
+import app.repository.FuncionarioRepository;
 import app.repository.QuiosqueRepository;
 import jakarta.transaction.Transactional;
 
 @Service
 public class FuncionarioService {
+	private static final Set<UserRole> ROLES_QUIOSQUE = Set.of(
+			UserRole.PROPRIETARIO, UserRole.GERENTE, UserRole.FUNCIONARIO);
 
 	@Autowired
 	private PasswordEncoder passwordEncoder;
 	@Autowired
 	private AuthRepository usuarioRepository;
 	@Autowired
+	private FuncionarioRepository funcionarioRepository;
+	@Autowired
 	private QuiosqueRepository quiosqueRepository;
 	@Autowired
 	private ImageService imageService;
 	@Autowired
-	private SenhaCriptoService senhaCriptoService;
+	private EmailService emailService;
 
-	/** Monta o DTO já com a senha decifrada (AES) para reexibição ao gestor. */
 	private FuncionarioResponseDTO toDTO(Usuario u) {
-		return FuncionarioResponseDTO.from(u, senhaCriptoService.decifrar(u.getSenhaCifrada()));
+		return FuncionarioResponseDTO.from(u);
 	}
 
 	public List<FuncionarioResponseDTO> getFuncionarios(Usuario usuario, Long id_quiosque) {
@@ -103,8 +107,16 @@ public class FuncionarioService {
 		if (data.diasTurno() != null)
 			user.setDiasTurno(data.diasTurno());
 
-		if (data.email() != null && !data.email().isBlank())
-			user.setEmail(data.email().trim());
+		if (data.email() != null && !data.email().isBlank()) {
+			String email = data.email().trim().toLowerCase(Locale.ROOT);
+			boolean emailEmUso = funcionarioRepository
+					.existsByEmailIgnoreCaseAndRoleInAndIdNot(email, ROLES_QUIOSQUE, user.getId())
+					|| usuarioRepository.existsByLoginAndRoleInAndIdNot(
+							email, ROLES_QUIOSQUE, user.getId());
+			if (emailEmUso)
+				throw new ResponseStatusException(HttpStatus.CONFLICT, "E-mail já cadastrado");
+			user.setEmail(email);
+		}
 
 		if (data.telefone() != null && !data.telefone().isBlank()) {
 		    user.setTelefone(data.telefone());
@@ -115,20 +127,23 @@ public class FuncionarioService {
 	}
 	
 	@Transactional
-	public String resetPassword(Usuario usuario, Long id_quiosque, UUID id) {
+	public void resetPassword(Usuario usuario, Long id_quiosque, UUID id) {
 		Quiosque quiosque = findQuiosqueForUser(usuario, id_quiosque);
 		
 		Funcionario user = this.usuarioRepository.findByQuiosqueAndPublicId(quiosque, id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,("Funcionario não encontrada nesse quiosque")));
+		if (user.getEmail() == null || user.getEmail().isBlank())
+			throw new ResponseStatusException(
+					HttpStatus.BAD_REQUEST, "Funcionário não possui e-mail cadastrado");
 		
 		String senha = UUID.randomUUID().toString().substring(0, 8);
 
 		String encryptedPassword = passwordEncoder.encode(senha);
 
 		user.setSenhaHash(encryptedPassword);
-		user.setSenhaCifrada(senhaCriptoService.cifrar(senha));
+		user.setSenhaCifrada(null);
 		user.setDeveTrocarSenha(true);
-		return senha;
+		emailService.enviarCredenciaisFuncionario(user.getEmail(), user.getLogin(), senha);
 	}
 	
 	@Transactional

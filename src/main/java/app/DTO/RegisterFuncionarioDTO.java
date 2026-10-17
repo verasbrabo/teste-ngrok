@@ -15,7 +15,7 @@ public record RegisterFuncionarioDTO(
 		@NotBlank
 		@Email
 		String email,
-		// Campo legado aceito pelo app; a API continua gerando a senha provisória.
+		// Campo legado aceito por clientes antigos; a API ignora esse valor.
 		String password,
 		// CPF é opcional: o cadastro de proprietário (quiosque) não o coleta.
 		String cpf,

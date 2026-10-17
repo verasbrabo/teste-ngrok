@@ -47,7 +47,7 @@ class EmailServiceTest {
 
 		assertArrayEquals(new String[] {"funcionario@teste.com"}, mensagem.getTo());
 		assertEquals("Seus dados de acesso", mensagem.getSubject());
-		assertTrue(mensagem.getText().contains("Usuário: QUI01funcionario"));
+		assertTrue(mensagem.getText().contains("Login: QUI01funcionario"));
 		assertTrue(mensagem.getText().contains("Senha provisória: Senha123"));
 	}
 

@@ -25,7 +25,7 @@ public class EmailService {
 
 	public void enviarCredenciaisFuncionario(
 			String destinatario,
-			String usuario,
+			String login,
 			String senha) {
 		SimpleMailMessage mensagem = new SimpleMailMessage();
 		mensagem.setTo(destinatario);
@@ -35,9 +35,11 @@ public class EmailService {
 
 				Seu acesso foi criado com sucesso.
 
-				Usuário: %s
+				Login: %s
 				Senha provisória: %s
-				""".formatted(usuario, senha));
+
+				Por segurança, altere a senha no primeiro acesso.
+				""".formatted(login, senha));
 		mailSender.send(mensagem);
 	}
 }

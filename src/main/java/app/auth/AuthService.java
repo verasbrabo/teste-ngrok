@@ -5,15 +5,13 @@ import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.mail.MailException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -22,7 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-import app.DTO.FuncionarioResponseDTO;
 import app.DTO.NotificationTokenDTO;
 import app.DTO.RegisterFuncionarioDTO;
 import app.DTO.TrocarSenhaDTO;
@@ -47,14 +44,12 @@ import app.repository.QuiosqueRepository;
 import app.repository.RecoveryTokenRepository;
 import app.service.EmailService;
 import app.service.ImageService;
-import app.service.SenhaCriptoService;
 import jakarta.transaction.Transactional;
 
 
 
 @Service
 public class AuthService implements UserDetailsService{
-	private static final Logger LOGGER = LoggerFactory.getLogger(AuthService.class);
 	private static final String PREFIXO_CLIENTE = "CLIENTE::";
 	private static final String PREFIXO_QUIOSQUE = "QUIOSQUE::";
 	private static final Set<UserRole> ROLES_QUIOSQUE = Set.of(
@@ -73,8 +68,6 @@ public class AuthService implements UserDetailsService{
 	@Autowired
 	private PedidoRepository pedidoRepository;
 	@Autowired
-	private SenhaCriptoService senhaCriptoService;
-	@Autowired
 	private EmailService emailService;
 	@Autowired
 	private RecoveryTokenRepository recoveryTokenRepository;
@@ -87,7 +80,7 @@ public class AuthService implements UserDetailsService{
 					.orElseThrow(() -> new UsernameNotFoundException("Conta não encontrada"));
 		}
 		if (username.startsWith(PREFIXO_QUIOSQUE)) {
-			String login = username.substring(PREFIXO_QUIOSQUE.length());
+			String login = username.substring(PREFIXO_QUIOSQUE.length()).trim();
 			return usuarioRepository.findByLoginAndRoleIn(login, ROLES_QUIOSQUE)
 					.orElseThrow(() -> new UsernameNotFoundException("Conta não encontrada"));
 		}
@@ -100,7 +93,7 @@ public class AuthService implements UserDetailsService{
 				: PREFIXO_QUIOSQUE;
 		return prefixo + login;
 	}
-	
+
 	public Usuario register(RegisterDTO data){
 		if (data.role() == UserRole.PROPRIETARIO) {
 			String cnpj = data.cnpj() != null && !data.cnpj().isBlank()
@@ -138,7 +131,8 @@ public class AuthService implements UserDetailsService{
 	public Funcionario registerProprietario(
 			RegisterProprietarioDTO data,
 			MultipartFile file) {
-		if (usuarioRepository.existsByLoginAndRoleIn(data.email(), ROLES_QUIOSQUE))
+		String email = normalizarEmail(data.email());
+		if (emailQuiosqueEmUso(email, null))
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "E-mail já cadastrado");
 		if (usuarioRepository.existsByTelefoneAndRoleIn(data.telefone(), ROLES_QUIOSQUE))
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Telefone já cadastrado");
@@ -151,13 +145,13 @@ public class AuthService implements UserDetailsService{
 
 		Funcionario proprietario = new Funcionario(
 				data.nome(),
-				data.email(),
+				email,
 				passwordEncoder.encode(data.password()),
 				"",
 				data.telefone(),
 				UserRole.PROPRIETARIO);
 		// No proprietário, o e-mail de contato também é o login da conta.
-		proprietario.setEmail(data.email().trim());
+		proprietario.setEmail(email);
 		proprietario.setCnpj(cnpj);
 		proprietario.setUltimoLogin(LocalDateTime.now());
 		proprietario = usuarioRepository.save(proprietario);
@@ -179,6 +173,10 @@ public class AuthService implements UserDetailsService{
 			RegisterFuncionarioDTO data) {
 		Quiosque quiosque = findQuiosqueForUser(usuario, idQuiosque);
 		UserRole role = validarCargoCadastro(usuario.getRole(), data.role());
+		String email = normalizarEmail(data.email());
+		if (emailQuiosqueEmUso(email, null)) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "E-mail já cadastrado");
+		}
 		if (usuarioRepository.existsByTelefoneAndRoleIn(data.telefone(), ROLES_QUIOSQUE)) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Telefone já cadastrado");
 		}
@@ -190,13 +188,13 @@ public class AuthService implements UserDetailsService{
 		Funcionario user = new Funcionario(
 				data.nome(), login, encryptedPassword, normalizarCpf(data.cpf()),
 				data.telefone(), role);
-		user.setEmail(data.email().trim());
+		user.setEmail(email);
 		user.setInicioTurno(data.startShift());
 		user.setFimTurno(data.finishShift());
 		if (data.diasTurno() != null)
 			user.setDiasTurno(data.diasTurno());
 		user.setDeveTrocarSenha(true);
-		user.setSenhaCifrada(senhaCriptoService.cifrar(senha));
+		user.setSenhaCifrada(null);
 		user.setQuiosque(quiosque);
 		quiosque.getFuncionarios().add(user);
 		user = usuarioRepository.save(user);
@@ -205,20 +203,15 @@ public class AuthService implements UserDetailsService{
 		RegisterAdminResponseDTO response = new RegisterAdminResponseDTO(
 				user.getPublicId(),
 				quiosque.getNome(),
-				senha,
 				user.getEmail(),
 				user.getNome(),
-				user.getLogin(),
 				user.getDiasTurnoLista(),
 				user.getRole(),
 				user.getTelefone());
 
-		// O cadastro deve permanecer concluído mesmo se o provedor SMTP falhar.
-		try {
-			emailService.enviarCredenciaisFuncionario(user.getEmail(), login, senha);
-		} catch (MailException exception) {
-			LOGGER.warn("Funcionário criado, mas o e-mail de credenciais não foi enviado", exception);
-		}
+		// A credencial provisória existe apenas durante o envio e nunca é devolvida
+		// ao gestor nem persistida de forma reversível.
+		emailService.enviarCredenciaisFuncionario(user.getEmail(), login, senha);
 		return response;
 	}
 
@@ -236,23 +229,23 @@ public class AuthService implements UserDetailsService{
 
 		return cargoSolicitado;
 	}
-	
+
 	private String procurarDuplicatas(String username) {
 		List<String> usernames = usuarioRepository.findLoginByBase(username);
-		
-		if(!usernames.contains(username)) 
+		if (!usernames.contains(username))
 			return username;
-		
+
 		int count = 2;
-		while(usernames.contains(username + count))
+		while (usernames.contains(username + count))
 			count++;
 		return username + count;
 	}
 	
 	public void forgotPassword(EmailDTO data) {
+		String email = normalizarEmail(data.email());
 		Optional<Usuario> user = data.tipoConta() == TipoConta.CLIENTE
-				? usuarioRepository.findByLoginAndRole(data.email(), UserRole.CLIENTE)
-				: usuarioRepository.findByLoginAndRole(data.email(), UserRole.PROPRIETARIO);
+				? usuarioRepository.findByLoginAndRole(email, UserRole.CLIENTE)
+				: usuarioRepository.findByLoginAndRole(email, UserRole.PROPRIETARIO);
 
 		if (user.isEmpty()) return;
 
@@ -275,18 +268,18 @@ public class AuthService implements UserDetailsService{
 		
 		this.recoveryTokenRepository.save(token);
 		
-		emailService.enviarEmail(data.email(), "Código de recuperação da sua conta", codigo);
+		emailService.enviarEmail(email, "Código de recuperação da sua conta", codigo);
 	}
 	
 	@Transactional
 	public void resetPassword(String token, ResetPasswordDTO data) {
-		UserRole role = data.tipoConta() == TipoConta.CLIENTE
-				? UserRole.CLIENTE
-				: UserRole.PROPRIETARIO;
+		Set<UserRole> roles = data.tipoConta() == TipoConta.CLIENTE
+				? Set.of(UserRole.CLIENTE)
+				: Set.of(UserRole.PROPRIETARIO);
 
 		RecoveryToken recoveryToken =
-				recoveryTokenRepository.findByTokenAndUsuarioRoleAndExpiracaoAfter(
-						token, role, LocalDateTime.now())
+				recoveryTokenRepository.findByTokenAndUsuarioRoleInAndExpiracaoAfter(
+						token, roles, LocalDateTime.now())
                         .orElseThrow(() ->
                                 new RuntimeException("Token inválido"));
 
@@ -297,6 +290,9 @@ public class AuthService implements UserDetailsService{
         Usuario usuario = recoveryToken.getUsuario();
 
         usuario.setSenhaHash(passwordEncoder.encode(data.password()));
+		usuario.setSenhaCifrada(null);
+		if (usuario instanceof Funcionario funcionario)
+			funcionario.setDeveTrocarSenha(false);
 
         usuarioRepository.save(usuario);
 
@@ -322,22 +318,37 @@ public class AuthService implements UserDetailsService{
 	}
 	
 	
+	private static String normalizarEmail(String email) {
+		return email.trim().toLowerCase(Locale.ROOT);
+	}
+
 	private String gerarUsername(String nomeCompleto, String codigoQuiosque) {
 		String[] partes = nomeCompleto.trim().split("\\s+");
 		String nome = normalizar(partes[0]);
-		if(partes.length == 1)
+		if (partes.length == 1)
 			return codigoQuiosque + nome;
 		String sobrenome = normalizar(partes[partes.length - 1]);
-		
 		return codigoQuiosque + nome + sobrenome;
 	}
-	
+
 	private String normalizar(String texto) {
 		return Normalizer
 				.normalize(texto, Normalizer.Form.NFD)
 				.replaceAll("\\p{M}", "")
-				.toLowerCase()
+				.toLowerCase(Locale.ROOT)
 				.replaceAll("[^a-z0-9]", "");
+	}
+
+	/** E-mail é único dentro do contexto do quiosque, mas pode existir no cliente. */
+	private boolean emailQuiosqueEmUso(String email, Long ignorarId) {
+		if (ignorarId == null) {
+			return funcionarioRepository.existsByEmailIgnoreCaseAndRoleIn(email, ROLES_QUIOSQUE)
+					|| usuarioRepository.existsByLoginAndRoleIn(email, ROLES_QUIOSQUE);
+		}
+		return funcionarioRepository.existsByEmailIgnoreCaseAndRoleInAndIdNot(
+				email, ROLES_QUIOSQUE, ignorarId)
+				|| usuarioRepository.existsByLoginAndRoleInAndIdNot(
+						email, ROLES_QUIOSQUE, ignorarId);
 	}
 
 	// CPF é opcional (funcionário/gerente não o informam), mas a coluna
@@ -402,7 +413,8 @@ public class AuthService implements UserDetailsService{
 		if (user instanceof Funcionario funcionario
 				&& data.email() != null
 				&& !data.email().isBlank()) {
-			funcionario.setEmail(data.email().trim());
+			String email = normalizarEmail(data.email());
+			funcionario.setEmail(email);
 		}
 		usuarioRepository.save(user);
 		UsuarioResponseDTO response = UsuarioResponseDTO.from(user);
@@ -411,16 +423,17 @@ public class AuthService implements UserDetailsService{
 
 	private void validarDadosUnicos(Usuario user, UpdateMeDTO data) {
 		boolean contaCliente = user.getRole() == UserRole.CLIENTE;
-		boolean emailTambemEhLogin = user.getRole() == UserRole.CLIENTE
-				|| user.getRole() == UserRole.PROPRIETARIO;
-		if (emailTambemEhLogin
-				&& data.email() != null && !data.email().isBlank()
-				&& !data.email().equalsIgnoreCase(user.getLogin())) {
+		String emailAtual = user instanceof Funcionario funcionario
+				&& funcionario.getEmail() != null && !funcionario.getEmail().isBlank()
+						? funcionario.getEmail()
+						: user.getLogin();
+		if (data.email() != null && !data.email().isBlank()
+				&& !data.email().equalsIgnoreCase(emailAtual)) {
+			String email = normalizarEmail(data.email());
 			boolean emailEmUso = contaCliente
 					? usuarioRepository.existsByLoginAndRoleAndIdNot(
-							data.email(), UserRole.CLIENTE, user.getId())
-					: usuarioRepository.existsByLoginAndRoleInAndIdNot(
-							data.email(), ROLES_QUIOSQUE, user.getId());
+							email, UserRole.CLIENTE, user.getId())
+					: emailQuiosqueEmUso(email, user.getId());
 			if (emailEmUso)
 				throw new ResponseStatusException(HttpStatus.CONFLICT, "E-mail já cadastrado");
 		}
@@ -445,6 +458,7 @@ public class AuthService implements UserDetailsService{
 		
 		if (data.novaSenha() != null && !data.novaSenha().isBlank()) {
 			usuario.setSenhaHash(passwordEncoder.encode(data.novaSenha()));
+			usuario.setSenhaCifrada(null);
 			if (usuario instanceof Funcionario funcionario)
 				funcionario.setDeveTrocarSenha(false);
 		}

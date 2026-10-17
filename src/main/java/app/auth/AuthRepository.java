@@ -49,11 +49,11 @@ public interface AuthRepository extends JpaRepository<Usuario, Long>{
 	List<Funcionario> findByQuiosqueId(Long id);
 	
 	void deleteByPublicId(UUID publicId);
-	
-	@Query  (""" 
+
+	@Query("""
 			SELECT u.login
 			FROM Usuario u
 			WHERE u.login LIKE :base%
-		    """)
+			""")
 	List<String> findLoginByBase(@Param("base") String base);
 }

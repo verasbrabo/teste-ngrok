@@ -82,11 +82,12 @@ public class FuncionarioController {
 	
 	@PostMapping("/{id}/reset-password")
 	@PreAuthorize("hasAnyRole('GERENTE')")
-	public ResponseEntity<String> resetPassword(
+	public ResponseEntity<Void> resetPassword(
 			@AuthenticationPrincipal Usuario usuario,
 			@PathVariable Long id_quiosque,
 			@PathVariable UUID id){		
-		return ResponseEntity.ok(funcionarioService.resetPassword(usuario, id_quiosque, id));
+		funcionarioService.resetPassword(usuario, id_quiosque, id);
+		return ResponseEntity.noContent().build();
 	}
 	
 //	@PatchMapping("/me")
