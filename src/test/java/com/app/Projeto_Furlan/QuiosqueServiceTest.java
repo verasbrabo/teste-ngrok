@@ -2,6 +2,8 @@ package app.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -88,5 +90,26 @@ class QuiosqueServiceTest {
 
 		assertEquals(HttpStatus.FORBIDDEN, erro.getStatusCode());
 		verify(quiosque, never()).atualizarDados(atualizacao);
+	}
+
+	@Test
+	void deveLimitarBuscaDoClienteAUmQuilometro() {
+		when(quiosqueRepository.findByDistanciaAtivo(
+				anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+				anyDouble(), anyDouble())).thenReturn(List.of());
+
+		quiosqueService.findByDistancia(-23.5505, -46.6333, 10000.0);
+
+		// O terceiro argumento é o raio efetivamente aplicado pela API.
+		verify(quiosqueRepository).findByDistanciaAtivo(
+				eq(-23.5505), eq(-46.6333), eq(1000.0), anyDouble(),
+				anyDouble(), anyDouble(), anyDouble());
+	}
+
+	@Test
+	void deveNormalizarRaiosAntigosParaQuinhentosMetros() {
+		quiosqueService.normalizarRaiosDeAtendimento();
+
+		verify(quiosqueRepository).limitarDistanciaAtendimento(500L);
 	}
 }

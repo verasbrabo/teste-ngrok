@@ -16,15 +16,15 @@ class QuiosqueDistAtendimentoValidationTest {
 	private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
 	@Test
-	void deveAceitarRaioDeAteDoisMilMetros() {
-		QuiosqueUpdateDTO dto = criarAtualizacao(2000L);
+	void deveAceitarRaioDeAteQuinhentosMetros() {
+		QuiosqueUpdateDTO dto = criarAtualizacao(500L);
 
 		assertTrue(validator.validateProperty(dto, "distAtendimento").isEmpty());
 	}
 
 	@Test
-	void deveRejeitarRaioAcimaDeDoisMilMetros() {
-		QuiosqueUpdateDTO dto = criarAtualizacao(2001L);
+	void deveRejeitarRaioAcimaDeQuinhentosMetros() {
+		QuiosqueUpdateDTO dto = criarAtualizacao(501L);
 
 		assertFalse(validator.validateProperty(dto, "distAtendimento").isEmpty());
 	}
@@ -33,7 +33,7 @@ class QuiosqueDistAtendimentoValidationTest {
 	void deveRejeitarRaioAcimaDoLimiteNoCadastro() {
 		QuiosqueDTO dto = new QuiosqueDTO(
 				"Quiosque Central", "central@example.com",
-				LocalTime.of(8, 0), LocalTime.of(18, 0), null, null, 2001L,
+				LocalTime.of(8, 0), LocalTime.of(18, 0), null, null, 501L,
 				"01001000", "SP", "São Paulo", null, null, null,
 				-23.5505, -46.6333);
 

@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -42,6 +43,11 @@ public interface QuiosqueRepository extends JpaRepository<Quiosque, Long> {
 	List<Quiosque> findByProprietario(Funcionario proprietario);
 	
 	boolean existsByEmail(String email);
+
+	/** Reduz configurações antigas para o limite atual de atendimento. */
+	@Modifying(clearAutomatically = true, flushAutomatically = true)
+	@Query("UPDATE Quiosque q SET q.distAtendimento = :limite WHERE q.distAtendimento > :limite")
+	int limitarDistanciaAtendimento(@Param("limite") Long limite);
 	
 	@Query("""
 		    SELECT

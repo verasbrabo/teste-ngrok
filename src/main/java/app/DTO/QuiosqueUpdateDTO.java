@@ -24,7 +24,7 @@ public record QuiosqueUpdateDTO(
 		@Size(min = 7, max = 7, message = "Os dias de funcionamento devem conter os sete dias da semana")
 		List<Boolean> diasAtivo,
 		@Min(value = 1, message = "O raio de atendimento deve ser de pelo menos 1 metro")
-		@Max(value = 2000, message = "O raio de atendimento deve ser de no máximo 2000 metros")
+		@Max(value = 500, message = "O raio de atendimento deve ser de no máximo 500 metros")
 		Long distAtendimento,
 		String cep,
 		String uf,

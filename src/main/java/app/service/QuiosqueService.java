@@ -11,6 +11,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -51,6 +53,8 @@ import jakarta.transaction.Transactional;
 
 @Service
 public class QuiosqueService {
+	private static final long RAIO_MAXIMO_ATENDIMENTO_METROS = 500L;
+	private static final double RAIO_MAXIMO_LISTAGEM_CLIENTE_METROS = 1000.0;
 
 	@Autowired
 	private PedidoRepository pedidoRepository;
@@ -66,6 +70,16 @@ public class QuiosqueService {
 	private AuthRepository funcionarioRepository;
 	@Autowired
 	ItemPedidoRepository itemPedidoRepository;
+
+	/**
+	 * Normaliza quiosques criados quando o limite permitido ainda era maior.
+	 * A atualização é idempotente e só altera registros acima de 500 metros.
+	 */
+	@EventListener(ApplicationReadyEvent.class)
+	@Transactional
+	public void normalizarRaiosDeAtendimento() {
+		quiosqueRepository.limitarDistanciaAtendimento(RAIO_MAXIMO_ATENDIMENTO_METROS);
+	}
 	
 	@Transactional
 	public QuiosqueCreateDTO save(
@@ -237,13 +251,21 @@ public class QuiosqueService {
 	        double latUsuario,
 	        double lonUsuario,
 	        double raioM) {
+		if (!Double.isFinite(raioM) || raioM <= 0) {
+			throw new ResponseStatusException(
+					HttpStatus.BAD_REQUEST,
+					"O raio de busca deve ser maior que zero");
+		}
+
+		// Mesmo aplicativos antigos não podem ampliar a listagem além de 1 km.
+		double raioEfetivo = Math.min(raioM, RAIO_MAXIMO_LISTAGEM_CLIENTE_METROS);
 
 	    record QuiosqueDistancia(Quiosque quiosque, long metros) {}
 
 	    final double R = 6371000.0; // metros
 
-	    double latDiff = Math.toDegrees(raioM / R);
-	    double lonDiff = Math.toDegrees(raioM / (R * Math.cos(Math.toRadians(latUsuario))));
+	    double latDiff = Math.toDegrees(raioEfetivo / R);
+	    double lonDiff = Math.toDegrees(raioEfetivo / (R * Math.cos(Math.toRadians(latUsuario))));
 
 	    double minLat = latUsuario - latDiff;
 	    double maxLat = latUsuario + latDiff;
@@ -251,7 +273,7 @@ public class QuiosqueService {
 	    double maxLon = lonUsuario + lonDiff;
 
 	    List<Quiosque> lista = this.quiosqueRepository
-	            .findByDistanciaAtivo(latUsuario, lonUsuario, raioM,
+	            .findByDistanciaAtivo(latUsuario, lonUsuario, raioEfetivo,
 	                    minLat, maxLat, minLon, maxLon);
 
 	    Coordenada usuario = new Coordenada(latUsuario, lonUsuario);
@@ -261,7 +283,7 @@ public class QuiosqueService {
 	                    q,
 	                    q.getCoordenada().distanciaAte(usuario)
 	            ))
-	            .filter(kd -> kd.metros() <= raioM)
+	            .filter(kd -> kd.metros() <= raioEfetivo)
 	            .sorted(Comparator.comparingLong(QuiosqueDistancia::metros))
 	            .map(kd -> {
 	                kd.quiosque().setDistancia(kd.metros());
