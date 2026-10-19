@@ -1,6 +1,7 @@
 package app.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -20,9 +21,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import app.DTO.LocalizacaoEntregaCreateDTO;
+import app.config.NotificationRequestDTO;
+import app.config.NotificationService;
+import app.entity.Coordenada;
 import app.entity.Pedido;
 import app.entity.PontoRastreamentoEntrega;
 import app.entity.Quiosque;
@@ -44,6 +50,9 @@ class RastreamentoEntregaServiceTest {
 	@Mock
 	private PontoRastreamentoEntregaRepository pontoRepository;
 
+	@Mock
+	private NotificationService notificationService;
+
 	@InjectMocks
 	private RastreamentoEntregaService rastreamentoService;
 
@@ -62,6 +71,8 @@ class RastreamentoEntregaServiceTest {
 		pedido.setId(pedidoId);
 		pedido.setStatus(StatusPedido.EM_ENTREGA);
 		pedido.setIdAparelhoEntregador(aparelhoEntregadorId);
+		pedido.setCoordenada(new Coordenada(-23.55052, -46.633308));
+		pedido.setCliente(org.mockito.Mockito.mock(Usuario.class));
 	}
 
 	@Test
@@ -218,6 +229,103 @@ class RastreamentoEntregaServiceTest {
 
 		assertEquals(HttpStatus.BAD_REQUEST, erro.getStatusCode());
 		verify(pontoRepository, never()).save(any(PontoRastreamentoEntrega.class));
+	}
+
+	@Test
+	void deveNotificarClienteDepoisDeDuasPosicoesDentroDeCinquentaMetros() {
+		prepararAcessoAoPedido();
+		when(pedido.getCliente().getDeviceToken()).thenReturn("token-cliente");
+		Instant anteriorEm = Instant.now().minusSeconds(10);
+		PontoRastreamentoEntrega anterior = new PontoRastreamentoEntrega(
+				pedido, -23.55025, -46.633308, 8.0, 0.0, 1.0, anteriorEm);
+		when(pontoRepository.findFirstByPedidoOrderByCapturadoEmDesc(pedido))
+				.thenReturn(Optional.of(anterior));
+		when(pontoRepository.save(any(PontoRastreamentoEntrega.class)))
+				.thenAnswer(invocacao -> invocacao.getArgument(0));
+		when(pedidoRepository.registrarNotificacaoEntregadorProximo(
+				any(UUID.class), any(Instant.class))).thenReturn(1);
+
+		TransactionSynchronizationManager.initSynchronization();
+		try {
+			rastreamentoService.publicar(
+					funcionario,
+					quiosqueId,
+					pedidoId,
+					localizacao(
+							-23.55034,
+							-46.633308,
+							anteriorEm.plusSeconds(10),
+							aparelhoEntregadorId));
+
+			assertNotNull(pedido.getNotificacaoEntregadorProximoEm());
+			verify(notificationService, never())
+					.sendNotificationToDevice(any(NotificationRequestDTO.class));
+			for (TransactionSynchronization sincronizacao
+					: TransactionSynchronizationManager.getSynchronizations()) {
+				sincronizacao.afterCommit();
+			}
+			verify(notificationService).sendNotificationToDevice(
+					new NotificationRequestDTO(
+							"token-cliente",
+							"Entregador proximo",
+							"Seu entregador esta proximo do local de entrega.",
+							pedidoId.toString(),
+							"EM_ENTREGA",
+							null,
+							"ENTREGADOR_PROXIMO"));
+		} finally {
+			TransactionSynchronizationManager.clearSynchronization();
+		}
+	}
+
+	@Test
+	void naoDeveNotificarComApenasUmaPosicaoDentroDoRaio() {
+		prepararAcessoAoPedido();
+		when(pontoRepository.findFirstByPedidoOrderByCapturadoEmDesc(pedido))
+				.thenReturn(Optional.empty());
+		when(pontoRepository.save(any(PontoRastreamentoEntrega.class)))
+				.thenAnswer(invocacao -> invocacao.getArgument(0));
+
+		rastreamentoService.publicar(
+				funcionario,
+				quiosqueId,
+				pedidoId,
+				localizacao(
+						-23.55034,
+						-46.633308,
+						Instant.now(),
+						aparelhoEntregadorId));
+
+		verify(pedidoRepository, never()).registrarNotificacaoEntregadorProximo(
+				any(UUID.class), any(Instant.class));
+		verifyNoInteractions(notificationService);
+	}
+
+	@Test
+	void naoDeveNotificarNovamentePedidoQueJaAvisouAProximidade() {
+		prepararAcessoAoPedido();
+		pedido.setNotificacaoEntregadorProximoEm(Instant.now().minusSeconds(30));
+		Instant anteriorEm = Instant.now().minusSeconds(10);
+		PontoRastreamentoEntrega anterior = new PontoRastreamentoEntrega(
+				pedido, -23.55025, -46.633308, 8.0, 0.0, 1.0, anteriorEm);
+		when(pontoRepository.findFirstByPedidoOrderByCapturadoEmDesc(pedido))
+				.thenReturn(Optional.of(anterior));
+		when(pontoRepository.save(any(PontoRastreamentoEntrega.class)))
+				.thenAnswer(invocacao -> invocacao.getArgument(0));
+
+		rastreamentoService.publicar(
+				funcionario,
+				quiosqueId,
+				pedidoId,
+				localizacao(
+						-23.55034,
+						-46.633308,
+						anteriorEm.plusSeconds(10),
+						aparelhoEntregadorId));
+
+		verify(pedidoRepository, never()).registrarNotificacaoEntregadorProximo(
+				any(UUID.class), any(Instant.class));
+		verifyNoInteractions(notificationService);
 	}
 
 	@Test

@@ -44,19 +44,16 @@ public record NotificationRequestDTO(
 				"STATUS_PEDIDO");
 	}
 
-	/**
-	 * Notificacao criada somente quando a faixa estabilizada de proximidade
-	 * muda durante a entrega.
-	 */
-	public static NotificationRequestDTO proximidade(Pedido p) {
+	/** Aviso unico criado quando dois pontos de GPS confirmam a chegada. */
+	public static NotificationRequestDTO entregadorProximo(Pedido p) {
 		return new NotificationRequestDTO(
 				p.getCliente().getDeviceToken(),
-				"Proximidade da entrega",
-				p.getStatusProximidadeEntrega().getMensagem(),
+				"Entregador proximo",
+				"Seu entregador esta proximo do local de entrega.",
 				p.getId().toString(),
-				p.getStatusProximidadeEntrega().name(),
+				p.getStatus().name(),
 				null,
-				"STATUS_PROXIMIDADE");
+				"ENTREGADOR_PROXIMO");
 	}
 
 	/**

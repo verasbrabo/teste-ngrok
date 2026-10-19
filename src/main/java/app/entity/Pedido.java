@@ -2,6 +2,7 @@ package app.entity;
 
 import java.math.BigDecimal;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -11,7 +12,6 @@ import java.util.regex.Pattern;
 import app.enums.FormaPagamento;
 import app.enums.StatusPagamento;
 import app.enums.StatusPedido;
-import app.enums.StatusProximidadeEntrega;
 import app.enums.UserRole;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -110,17 +110,10 @@ public class Pedido {
     @Column(name = "id_device_entregador", nullable = true)
     private UUID aparelhoEntregadorId;
 
-    // RSSI medio calculado pelo quiosque durante a aproximacao. Campo opcional:
-    // a tela do entregador funciona localmente mesmo sem persistir esse valor.
-    @Column(name = "rssi_medio_entrega", nullable = true)
-    private Integer rssiMedioEntrega;
-
-    // Ultima faixa estabilizada recebida do quiosque. O campo e opcional para
-    // manter compatibilidade com pedidos criados antes desta funcionalidade.
-    @Enumerated(EnumType.STRING)
-    @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(name = "StatusProximidadeEntrega", length = 24, nullable = true)
-    private StatusProximidadeEntrega statusProximidadeEntrega;
+    // Registra o unico aviso de chegada enviado ao cliente. O aproximador BLE
+    // permanece local no aparelho do entregador e nao alimenta este campo.
+    @Column(name = "notificacao_entregador_proximo_em", nullable = true)
+    private Instant notificacaoEntregadorProximoEm;
     
     // Forma escolhida pelo cliente antes de criar o pedido. Representa a
     // intencao de pagamento na entrega, nao pagamento online confirmado.
@@ -265,20 +258,12 @@ public class Pedido {
         this.aparelhoEntregadorId = aparelhoEntregadorId;
     }
 
-    public Integer getRssiMedioEntrega() {
-        return rssiMedioEntrega;
+    public Instant getNotificacaoEntregadorProximoEm() {
+        return notificacaoEntregadorProximoEm;
     }
 
-    public void setRssiMedioEntrega(Integer rssiMedioEntrega) {
-        this.rssiMedioEntrega = rssiMedioEntrega;
-    }
-
-    public StatusProximidadeEntrega getStatusProximidadeEntrega() {
-        return statusProximidadeEntrega;
-    }
-
-    public void setStatusProximidadeEntrega(StatusProximidadeEntrega statusProximidadeEntrega) {
-        this.statusProximidadeEntrega = statusProximidadeEntrega;
+    public void setNotificacaoEntregadorProximoEm(Instant notificacaoEntregadorProximoEm) {
+        this.notificacaoEntregadorProximoEm = notificacaoEntregadorProximoEm;
     }
 
 

@@ -27,7 +27,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.server.ResponseStatusException;
 
 import app.DTO.AtualizarStatusDTO;
-import app.DTO.AtualizarProximidadeDTO;
 import app.DTO.AvaliarDTO;
 import app.DTO.ItemDTO;
 import app.DTO.ItemPedidoDTO;
@@ -55,7 +54,6 @@ import app.entity.Usuario;
 import app.enums.FormaPagamento;
 import app.enums.StatusPagamento;
 import app.enums.StatusPedido;
-import app.enums.StatusProximidadeEntrega;
 import app.enums.UserRole;
 import app.repository.AcompanhamentoRepository;
 import app.repository.CupomRepository;
@@ -705,53 +703,6 @@ public class PedidoService {
 			);			
 	}
 
-	@Transactional
-	public PedidoGetDTO atualizarProximidadeEntrega(
-			UUID id,
-			Long id_quiosque,
-			Usuario funcionario,
-			AtualizarProximidadeDTO data) {
-
-		Quiosque quiosque = findQuiosqueForUser(funcionario, id_quiosque);
-		Pedido pedido = pedidoRepository.findByIdAndQuiosqueForUpdate(id, quiosque)
-				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido nÃ£o encontrado"));
-
-		if (pedido.getStatus() != StatusPedido.EM_ENTREGA)
-			throw new ResponseStatusException(HttpStatus.CONFLICT, "Pedido nÃ£o estÃ¡ em entrega");
-
-		StatusProximidadeEntrega statusAnterior = pedido.getStatusProximidadeEntrega();
-		// A API persiste a leitura e a faixa calculada pelo quiosque. A confirmacao
-		// real da entrega continua sendo feita pelo codigo do pedido.
-		pedido.setRssiMedioEntrega(data.rssiMedio());
-		pedido.setStatusProximidadeEntrega(data.statusProximidade());
-		Pedido pedidoSalvo = pedidoRepository.saveAndFlush(pedido);
-
-		// A mesma faixa pode chegar varias vezes como telemetria; somente uma
-		// transicao efetiva gera push para o cliente.
-		if (statusAnterior != data.statusProximidade()) {
-			notificarClienteAposCommit(NotificationRequestDTO.proximidade(pedidoSalvo));
-		}
-		return PedidoGetDTO.from(pedidoSalvo);
-	}
-
-	/**
-	 * Aguarda o commit para nao avisar o cliente sobre um estado que possa ser
-	 * revertido pela transacao.
-	 */
-	private void notificarClienteAposCommit(NotificationRequestDTO notificacao) {
-		Runnable enviar = () -> notificationService.sendNotificationToDevice(notificacao);
-		if (TransactionSynchronizationManager.isSynchronizationActive()) {
-			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-				@Override
-				public void afterCommit() {
-					enviar.run();
-				}
-			});
-			return;
-		}
-		enviar.run();
-	}
-	
 	@Transactional
 	public PedidoGetDTO entregadorPedido(Funcionario entregador, Long id_quiosque, UUID id) {
 		Quiosque quiosque = findQuiosqueForUser(entregador, id_quiosque);	

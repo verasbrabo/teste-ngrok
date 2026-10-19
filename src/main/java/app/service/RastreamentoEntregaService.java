@@ -22,6 +22,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import app.DTO.LocalizacaoEntregaCreateDTO;
 import app.DTO.PontoRastreamentoEntregaDTO;
 import app.DTO.RastreamentoEntregaDTO;
+import app.config.NotificationRequestDTO;
+import app.config.NotificationService;
 import app.entity.Coordenada;
 import app.entity.Pedido;
 import app.entity.PontoRastreamentoEntrega;
@@ -46,6 +48,7 @@ public class RastreamentoEntregaService {
 	private static final double FATOR_DISTANCIA_POR_PRECISAO = 0.4;
 	private static final long INTERVALO_ESTACIONADO_SEGUNDOS = 15;
 	private static final double VELOCIDADE_MAXIMA_METROS_SEGUNDO = 12.0;
+	private static final long RAIO_AVISO_ENTREGADOR_PROXIMO_METROS = 50;
 
 	@Autowired
 	private PedidoRepository pedidoRepository;
@@ -55,6 +58,9 @@ public class RastreamentoEntregaService {
 
 	@Autowired
 	private PontoRastreamentoEntregaRepository pontoRepository;
+
+	@Autowired
+	private NotificationService notificationService;
 
 	// Cada pedido possui apenas os clientes que estao com a tela de tracking
 	// aberta. CopyOnWriteArrayList permite emitir e remover conexoes em paralelo.
@@ -115,6 +121,7 @@ public class RastreamentoEntregaService {
 						data.velocidadeMetrosSegundo(),
 						data.capturadoEm()));
 		PontoRastreamentoEntregaDTO resposta = PontoRastreamentoEntregaDTO.from(ponto);
+		notificarChegadaSeNecessario(pedido, ultimo.orElse(null), data);
 		emitirAposCommit(pedidoId, resposta);
 		return resposta;
 	}
@@ -220,19 +227,71 @@ public class RastreamentoEntregaService {
 				.distanciaAte(new Coordenada(atual.latitude(), atual.longitude()));
 	}
 
+	private void notificarChegadaSeNecessario(
+			Pedido pedido,
+			PontoRastreamentoEntrega anterior,
+			LocalizacaoEntregaCreateDTO atual) {
+		// Duas posicoes consecutivas evitam que um unico salto do GPS avise o
+		// cliente antes de o entregador realmente entrar na regiao de entrega.
+		if (pedido.getNotificacaoEntregadorProximoEm() != null
+				|| pedido.getCoordenada() == null
+				|| anterior == null
+				|| !precisaoValida(anterior.getPrecisaoMetros())
+				|| distanciaAteDestino(anterior, pedido.getCoordenada())
+						> RAIO_AVISO_ENTREGADOR_PROXIMO_METROS
+				|| distanciaAteDestino(atual, pedido.getCoordenada())
+						> RAIO_AVISO_ENTREGADOR_PROXIMO_METROS) {
+			return;
+		}
+
+		Instant instante = Instant.now();
+		int atualizado = pedidoRepository.registrarNotificacaoEntregadorProximo(
+				pedido.getId(), instante);
+		if (atualizado != 1) return;
+
+		pedido.setNotificacaoEntregadorProximoEm(instante);
+		NotificationRequestDTO notificacao =
+				NotificationRequestDTO.entregadorProximo(pedido);
+		executarAposCommit(
+				() -> notificationService.sendNotificationToDevice(notificacao));
+	}
+
+	private boolean precisaoValida(Double precisaoMetros) {
+		return precisaoMetros != null
+				&& precisaoMetros > 0
+				&& precisaoMetros <= PRECISAO_MAXIMA_METROS;
+	}
+
+	private long distanciaAteDestino(
+			PontoRastreamentoEntrega ponto,
+			Coordenada destino) {
+		return new Coordenada(ponto.getLatitude(), ponto.getLongitude())
+				.distanciaAte(destino);
+	}
+
+	private long distanciaAteDestino(
+			LocalizacaoEntregaCreateDTO ponto,
+			Coordenada destino) {
+		return new Coordenada(ponto.latitude(), ponto.longitude())
+				.distanciaAte(destino);
+	}
+
 	private void emitirAposCommit(UUID pedidoId, PontoRastreamentoEntregaDTO ponto) {
-		Runnable emitir = () -> emitir(pedidoId, ponto);
+		executarAposCommit(() -> emitir(pedidoId, ponto));
+	}
+
+	private void executarAposCommit(Runnable acao) {
 		if (TransactionSynchronizationManager.isSynchronizationActive()) {
 			TransactionSynchronizationManager.registerSynchronization(
 					new TransactionSynchronization() {
 						@Override
 						public void afterCommit() {
-							emitir.run();
+							acao.run();
 						}
 					});
 			return;
 		}
-		emitir.run();
+		acao.run();
 	}
 
 	private void emitir(UUID pedidoId, PontoRastreamentoEntregaDTO ponto) {

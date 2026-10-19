@@ -23,7 +23,6 @@ import app.DTO.PedidoDTO;
 import app.DTO.PedidoInternoDTO;
 import app.DTO.PedidoLoteDTO;
 import app.DTO.PedidoGetDTO;
-import app.DTO.AtualizarProximidadeDTO;
 import app.DTO.AtualizarStatusDTO;
 import app.DTO.AvaliarDTO;
 import app.DTO.MotivoCancelamentoDTO;
@@ -208,18 +207,6 @@ public class PedidoController {
 	    return ResponseEntity.ok(pedidoService.updatePedido(id, id_quiosque, admin, data));
 	}
 
-	// Atualiza a telemetria de proximidade calculada pelo app do quiosque.
-	// Nao finaliza pedido; serve apenas para expor o RSSI medio quando necessario.
-	@PatchMapping("/quiosques/{id_quiosque}/pedidos/{id}/proximidade")
-	@PreAuthorize("hasRole('FUNCIONARIO')")
-	public ResponseEntity<PedidoGetDTO> atualizarProximidadeEntrega(
-			@AuthenticationPrincipal Usuario admin,
-			@PathVariable Long id_quiosque,
-			@PathVariable UUID id,
-	        @RequestBody @Valid AtualizarProximidadeDTO data) {
-	    return ResponseEntity.ok(pedidoService.atualizarProximidadeEntrega(id, id_quiosque, admin, data));
-	}
-	
 	@PreAuthorize("hasAnyRole('FUNCIONARIO','CLIENTE')")
 	@PostMapping({
 			"/quiosque/{id_quiosque}/pedidos/{id}/cancelar",

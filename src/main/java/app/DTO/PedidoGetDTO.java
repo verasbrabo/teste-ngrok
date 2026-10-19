@@ -9,7 +9,6 @@ import app.entity.Pedido;
 import app.enums.FormaPagamento;
 import app.enums.StatusPagamento;
 import app.enums.StatusPedido;
-import app.enums.StatusProximidadeEntrega;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 
@@ -19,10 +18,6 @@ public record PedidoGetDTO(
         UUID idAparelho,
         // UUID do entregador que saiu com o pedido.
         UUID idAparelhoEntregador,
-        // RSSI medio opcional publicado pelo quiosque.
-        Integer rssiMedioEntrega,
-        // Ultima faixa estabilizada usada para notificar o cliente.
-        StatusProximidadeEntrega statusProximidadeEntrega,
 		@NotNull
 		Long id_quiosque,
 		@NotNull
@@ -84,8 +79,6 @@ public record PedidoGetDTO(
 	    	p.getId(),
                 p.getIdAparelho(),
                 p.getIdAparelhoEntregador(),
-                p.getRssiMedioEntrega(),
-                p.getStatusProximidadeEntrega(),
 	    	p.getQuiosque().getId(),
 	    	p.getQuiosque().getNome(),
 	    	p.getCliente().getId(),
