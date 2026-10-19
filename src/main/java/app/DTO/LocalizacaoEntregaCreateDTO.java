@@ -6,6 +6,7 @@ import java.util.UUID;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 
 /**
@@ -21,8 +22,8 @@ public record LocalizacaoEntregaCreateDTO(
 		@DecimalMax("180.0")
 		Double longitude,
 		@NotNull
-		@PositiveOrZero
-		@DecimalMax("500.0")
+		@Positive
+		@DecimalMax("25.0")
 		Double precisaoMetros,
 		@PositiveOrZero
 		@DecimalMax("360.0")

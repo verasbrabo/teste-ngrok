@@ -40,9 +40,12 @@ import jakarta.transaction.Transactional;
 public class RastreamentoEntregaService {
 	private static final Duration ATRASO_MAXIMO = Duration.ofMinutes(5);
 	private static final Duration ADIANTAMENTO_MAXIMO = Duration.ofMinutes(1);
-	private static final long DISTANCIA_MINIMA_METROS = 5;
+	private static final double PRECISAO_MAXIMA_METROS = 25.0;
+	private static final double DISTANCIA_MINIMA_METROS = 5.0;
+	private static final double DISTANCIA_MAXIMA_POR_PRECISAO_METROS = 10.0;
+	private static final double FATOR_DISTANCIA_POR_PRECISAO = 0.4;
 	private static final long INTERVALO_ESTACIONADO_SEGUNDOS = 15;
-	private static final double VELOCIDADE_MAXIMA_METROS_SEGUNDO = 55.0;
+	private static final double VELOCIDADE_MAXIMA_METROS_SEGUNDO = 12.0;
 
 	@Autowired
 	private PedidoRepository pedidoRepository;
@@ -77,6 +80,7 @@ public class RastreamentoEntregaService {
 					"Este aparelho nao iniciou a entrega do pedido");
 		}
 		validarHorario(data.capturadoEm());
+		validarPrecisao(data.precisaoMetros());
 
 		var ultimo = pontoRepository.findFirstByPedidoOrderByCapturadoEmDesc(pedido);
 		if (ultimo.isPresent()) {
@@ -89,7 +93,8 @@ public class RastreamentoEntregaService {
 			long segundos = Math.max(
 					1,
 					Duration.between(anterior.getCapturadoEm(), data.capturadoEm()).getSeconds());
-			if (distancia < DISTANCIA_MINIMA_METROS
+			double distanciaMinima = distanciaMinimaPorPrecisao(anterior, data);
+			if (distancia < distanciaMinima
 					&& segundos < INTERVALO_ESTACIONADO_SEGUNDOS) {
 				return PontoRastreamentoEntregaDTO.from(anterior);
 			}
@@ -181,6 +186,31 @@ public class RastreamentoEntregaService {
 			throw new ResponseStatusException(
 					HttpStatus.BAD_REQUEST, "Horario da localizacao invalido");
 		}
+	}
+
+	private void validarPrecisao(Double precisaoMetros) {
+		// A API repete a barreira do aplicativo para proteger o histórico de
+		// versões antigas ou clientes que tentem publicar coordenadas diretamente.
+		if (precisaoMetros == null
+				|| precisaoMetros <= 0
+				|| precisaoMetros > PRECISAO_MAXIMA_METROS) {
+			throw new ResponseStatusException(
+					HttpStatus.BAD_REQUEST, "Precisao do GPS insuficiente");
+		}
+	}
+
+	private double distanciaMinimaPorPrecisao(
+			PontoRastreamentoEntrega anterior,
+			LocalizacaoEntregaCreateDTO atual) {
+		// Quanto maior a margem de erro, maior deve ser o deslocamento antes de
+		// persistir um novo passo. O teto evita congelar uma entrega em movimento.
+		double precisaoReferencia = Math.max(
+				anterior.getPrecisaoMetros(), atual.precisaoMetros());
+		return Math.max(
+				DISTANCIA_MINIMA_METROS,
+				Math.min(
+						DISTANCIA_MAXIMA_POR_PRECISAO_METROS,
+						precisaoReferencia * FATOR_DISTANCIA_POR_PRECISAO));
 	}
 
 	private long distanciaMetros(

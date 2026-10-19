@@ -130,6 +130,97 @@ class RastreamentoEntregaServiceTest {
 	}
 
 	@Test
+	void deveRejeitarLocalizacaoComPrecisaoInsuficiente() {
+		prepararAcessoAoPedido();
+
+		ResponseStatusException erro = assertThrows(
+				ResponseStatusException.class,
+				() -> rastreamentoService.publicar(
+						funcionario,
+						quiosqueId,
+						pedidoId,
+						localizacao(
+								-23.55052,
+								-46.633308,
+								Instant.now(),
+								aparelhoEntregadorId,
+								30.0)));
+
+		assertEquals(HttpStatus.BAD_REQUEST, erro.getStatusCode());
+		verifyNoInteractions(pontoRepository);
+	}
+
+	@Test
+	void deveRejeitarPrecisaoDesconhecidaRepresentadaPorZero() {
+		prepararAcessoAoPedido();
+
+		ResponseStatusException erro = assertThrows(
+				ResponseStatusException.class,
+				() -> rastreamentoService.publicar(
+						funcionario,
+						quiosqueId,
+						pedidoId,
+						localizacao(
+								-23.55052,
+								-46.633308,
+								Instant.now(),
+								aparelhoEntregadorId,
+								0.0)));
+
+		assertEquals(HttpStatus.BAD_REQUEST, erro.getStatusCode());
+		verifyNoInteractions(pontoRepository);
+	}
+
+	@Test
+	void deveAumentarDistanciaMinimaQuandoGpsEstaMenosPreciso() {
+		prepararAcessoAoPedido();
+		Instant anteriorEm = Instant.now().minusSeconds(5);
+		PontoRastreamentoEntrega anterior = new PontoRastreamentoEntrega(
+				pedido, -23.55052, -46.633308, 20.0, 0.0, 0.0, anteriorEm);
+		when(pontoRepository.findFirstByPedidoOrderByCapturadoEmDesc(pedido))
+				.thenReturn(Optional.of(anterior));
+
+		rastreamentoService.publicar(
+				funcionario,
+				quiosqueId,
+				pedidoId,
+				localizacao(
+						-23.550466,
+						-46.633308,
+						anteriorEm.plusSeconds(5),
+						aparelhoEntregadorId,
+						20.0));
+
+		verify(pontoRepository, never()).save(any(PontoRastreamentoEntrega.class));
+	}
+
+	@Test
+	void deveRejeitarSaltoComVelocidadeImpossivelParaEntregaLocal() {
+		prepararAcessoAoPedido();
+		Instant anteriorEm = Instant.now().minusSeconds(2);
+		PontoRastreamentoEntrega anterior = new PontoRastreamentoEntrega(
+				pedido, -23.55052, -46.633308, 5.0, 0.0, 0.0, anteriorEm);
+		when(pontoRepository.findFirstByPedidoOrderByCapturadoEmDesc(pedido))
+				.thenReturn(Optional.of(anterior));
+
+		ResponseStatusException erro = assertThrows(
+				ResponseStatusException.class,
+				() -> rastreamentoService.publicar(
+						funcionario,
+						quiosqueId,
+						pedidoId,
+						localizacao(
+								-23.54952,
+								-46.633308,
+								anteriorEm.plusSeconds(2),
+								aparelhoEntregadorId,
+								5.0)));
+
+		assertEquals(HttpStatus.BAD_REQUEST, erro.getStatusCode());
+		verify(pontoRepository, never()).save(any(PontoRastreamentoEntrega.class));
+	}
+
+	@Test
 	void clienteNaoPodeConsultarRastreamentoDeOutroPedido() {
 		Usuario outroCliente = org.mockito.Mockito.mock(Usuario.class);
 		when(pedidoRepository.findByClienteAndId(outroCliente, pedidoId))
@@ -155,10 +246,19 @@ class RastreamentoEntregaServiceTest {
 			double longitude,
 			Instant capturadoEm,
 			UUID aparelhoId) {
+		return localizacao(latitude, longitude, capturadoEm, aparelhoId, 8.0);
+	}
+
+	private LocalizacaoEntregaCreateDTO localizacao(
+			double latitude,
+			double longitude,
+			Instant capturadoEm,
+			UUID aparelhoId,
+			double precisaoMetros) {
 		return new LocalizacaoEntregaCreateDTO(
 				latitude,
 				longitude,
-				8.0,
+				precisaoMetros,
 				180.0,
 				4.5,
 				capturadoEm,
