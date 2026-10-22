@@ -92,10 +92,32 @@
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>	
+
+		<!-- SDK do ngrok e biblioteca nativa correspondente ao sistema operacional detectado. -->
+		<dependency>
+			<groupId>com.ngrok</groupId>
+			<artifactId>ngrok-java</artifactId>
+			<version>1.1.1</version>
+		</dependency>
+		<dependency>
+			<groupId>com.ngrok</groupId>
+			<artifactId>ngrok-java-native</artifactId>
+			<version>1.1.1</version>
+			<classifier>${os.detected.classifier}</classifier>
+			<scope>runtime</scope>
+		</dependency>
 	
 	</dependencies>
 
 	<build>
+		<!-- Disponibiliza os.detected.classifier para selecionar o binario nativo correto. -->
+		<extensions>
+			<extension>
+				<groupId>kr.motd.maven</groupId>
+				<artifactId>os-maven-plugin</artifactId>
+				<version>1.7.0</version>
+			</extension>
+		</extensions>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
